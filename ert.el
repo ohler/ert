@@ -461,10 +461,14 @@ DATA is displayed to the user and should state the reason of the failure."
   (signal 'ert-test-failed (list data)))
 
 ;; The data structures that represent the result of running a test.
-(defstruct ert-test-result)
+(defstruct ert-test-result
+  ;; Markers delimiting the part of the *Messages* buffer generated
+  ;; during the execution of the test.
+  (messages-begin-marker nil)
+  (messages-end-marker nil)
+  )
 (defstruct (ert-test-passed (:include ert-test-result)))
-(defstruct (ert-test-result-with-condition (:include ert-test-result)
-                                           (:conc-name ert-test-result-))
+(defstruct (ert-test-result-with-condition (:include ert-test-result))
   (condition (assert nil))
   (backtrace (assert nil)))
 (defstruct (ert-test-error (:include ert-test-result-with-condition)))
@@ -566,21 +570,32 @@ silently or calls the interactive debugger, as appropriate."
                 (debug-ignored-errors nil))
             (funcall (ert-test-body (ert-test-execution-info-test info))))))
       (ert-pass))
-    (setf (ert-test-execution-info-result info) (make-ert-test-passed))))
+    (setf (ert-test-execution-info-result info) (make-ert-test-passed)))
+  nil)
+
+(defun ert-make-marker-in-messages-buffer ()
+  (with-current-buffer (get-buffer-create "*Messages*")
+    (set-marker (make-marker) (point-max))))
 
 (defun ert-run-test (test)
   "Run TEST.  Return the result and store it in TEST's `most-recent-result' slot."
   (setf (ert-test-most-recent-result test) nil)
   (block error
-    (lexical-let ((info (make-ert-test-execution-info
-                         :test test
-                         :result (make-ert-test-aborted-with-non-local-exit)
-                         :exit-continuation (lambda ()
-                                              (return-from error nil)))))
+    (lexical-let* ((begin-marker (ert-make-marker-in-messages-buffer))
+                   (info (make-ert-test-execution-info
+                          :test test
+                          :result (make-ert-test-aborted-with-non-local-exit
+                                   :messages-begin-marker begin-marker)
+                          :exit-continuation (lambda ()
+                                               (return-from error nil)))))
       (unwind-protect
           (ert-run-test-internal info)
-        (setf (ert-test-most-recent-result test)
-              (ert-test-execution-info-result info)))))
+        (let ((result (ert-test-execution-info-result info)))
+          (setf (ert-test-result-messages-begin-marker result)
+                begin-marker
+                (ert-test-result-messages-end-marker result)
+                (ert-make-marker-in-messages-buffer))
+          (setf (ert-test-most-recent-result test) result)))))
   (ert-test-most-recent-result test))
 
 
@@ -871,7 +886,7 @@ Returns nil if they are equal."
   "Format TIME in the particular variant of ISO 8601 used for timestamps in ERT."
   (format-time-string "%Y-%m-%d %T%z" time))
 
-(defun ert-insert-test-name-button (test-name)  
+(defun ert-insert-test-name-button (test-name)
   (insert-text-button (format "%S" test-name)
                       :type 'ert-test-name-button
                       'ert-test-name test-name))
@@ -1056,7 +1071,7 @@ Ensures a final newline is inserted."
                       (print-length (if extended-printer-limits-p 100 10)))
                   (let ((begin (point)))
                     (ert-pp-with-indentation-and-newline
-                     (ert-test-result-condition result))
+                     (ert-test-result-with-condition-condition result))
                     (save-restriction
                       (narrow-to-region begin (point))
                       ;; Inhibit optimization in `debugger-make-xrefs'
@@ -1324,7 +1339,7 @@ Returns the stats object."
             (ert-test-result-with-condition
              (message "Test %S backtrace:" (ert-test-name test))
              (with-temp-buffer
-               (ert-print-backtrace (ert-test-result-backtrace result))
+               (ert-print-backtrace (ert-test-result-with-condition-backtrace result))
                (goto-char (point-min))
                (while (not (eobp))
                  (let ((start (point))
@@ -1341,7 +1356,7 @@ Returns the stats object."
                      (print-length 10))
                  (let ((begin (point)))
                    (ert-pp-with-indentation-and-newline
-                    (ert-test-result-condition result))))
+                    (ert-test-result-with-condition-condition result))))
                (goto-char (1- (point-max)))
                (assert (looking-at "\n"))
                (delete-char 1)
@@ -1371,6 +1386,7 @@ Returns the stats object."
         ("r" ert-results-rerun-test-at-point)
         ("d" ert-results-rerun-test-at-point-debugging-errors)
         ("b" ert-results-pop-to-backtrace-for-test-at-point)
+        ("m" ert-results-pop-to-messages-for-test-at-point)
         ("p" ert-results-toggle-printer-limits-for-test-at-point)
         ("D" ert-delete-test)
         ([tab] forward-button)
@@ -1576,7 +1592,7 @@ To be used in the ERT results buffer."
     (etypecase result
       (ert-test-passed (error "Test passed, no backtrace available"))
       (ert-test-result-with-condition
-       (let ((backtrace (ert-test-result-backtrace result))
+       (let ((backtrace (ert-test-result-with-condition-backtrace result))
              (buffer
               (let ((default-major-mode 'fundamental-mode))
                 (get-buffer-create "*ERT Backtrace*"))))
@@ -1593,6 +1609,34 @@ To be used in the ERT results buffer."
            (insert "Backtrace for test `")
            (ert-insert-test-name-button (ert-test-name test))
            (insert "':\n")))))))
+
+(defun ert-results-pop-to-messages-for-test-at-point ()
+  "Display the part of the *Messages* buffer generated during the test at point.
+
+To be used in the ERT results buffer."
+  (interactive)
+  (let* ((node (ert-results-test-node-at-point))
+         (entry (ewoc-data node))
+         (test (ert-ewoc-entry-test entry))
+         (result (ert-ewoc-entry-result entry)))
+    (let* ((begin (ert-test-result-messages-begin-marker result))
+           (end (ert-test-result-messages-end-marker result))
+           (messages (with-current-buffer (get-buffer-create "*Messages*")
+                       (buffer-substring begin end)))
+           (buffer
+            (let ((default-major-mode 'fundamental-mode))
+              (get-buffer-create "*ERT Messages*"))))
+      (pop-to-buffer buffer)
+      (setq buffer-read-only t)
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert messages)
+        (goto-char (point-min))
+        (insert "Messages for test `")
+        (ert-insert-test-name-button (ert-test-name test))
+        (insert "':\n")
+        (when (= begin 1)
+          (insert "[...possibly truncated...]\n"))))))
 
 (defun ert-results-toggle-printer-limits-for-test-at-point ()
   "Toggle how much of the condition to print for the test at point.
@@ -1673,7 +1717,7 @@ This is an inverse of `add-to-list'."
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
       (assert (typep result 'ert-test-failed) t)
-      (assert (equal (ert-test-result-condition result)
+      (assert (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed "failure message"))
               t))))
 
@@ -1726,7 +1770,7 @@ This is an inverse of `add-to-list'."
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
       (assert (typep result 'ert-test-error) t)
-      (assert (equal (ert-test-result-condition result)
+      (assert (equal (ert-test-result-with-condition-condition result)
                      '(error "error message"))
               t))))
 
@@ -1747,7 +1791,7 @@ This is an inverse of `add-to-list'."
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
       (assert (typep result 'ert-test-failed) t)
-      (assert (equal (ert-test-result-condition result)
+      (assert (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed ((should nil) :form nil :value nil)))
               t)))
   (let ((test (make-ert-test :body (lambda () (should t)))))
@@ -1763,7 +1807,7 @@ This is an inverse of `add-to-list'."
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
       (assert (typep result 'ert-test-failed) t)
-      (assert (equal (ert-test-result-condition result)
+      (assert (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed ((should-not t) :form t :value t)))
               t)))
   (let ((test (make-ert-test :body (lambda () (should-not nil)))))
@@ -1777,7 +1821,7 @@ This is an inverse of `add-to-list'."
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
       (should (typep result 'ert-test-failed))
-      (should (equal (ert-test-result-condition result)
+      (should (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed
                        ((should-error (progn))
                         :form (progn)
@@ -1794,7 +1838,7 @@ This is an inverse of `add-to-list'."
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-failed))
       (should (equal
-               (ert-test-result-condition result)
+               (ert-test-result-with-condition-condition result)
                '(ert-test-failed
                  ((should-error (error "foo") :type 'singularity-error)
                   :form (error "foo")
@@ -1815,7 +1859,7 @@ This is an inverse of `add-to-list'."
                                       :test (lambda (error) nil))))))
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-failed))
-      (should (equal (ert-test-result-condition result)
+      (should (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed
                        ((should-error (error "foo") :test (lambda (error) nil))
                         :form (error "foo")
@@ -1836,7 +1880,7 @@ This is an inverse of `add-to-list'."
                                       :test (lambda (error) nil))))))
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-failed))
-      (should (equal (ert-test-result-condition result)
+      (should (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed
                        ((should-error (signal 'singularity-error nil)
                                       :type 'singularity-error
@@ -1870,7 +1914,7 @@ This is an inverse of `add-to-list'."
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-failed))
       (should (equal
-               (ert-test-result-condition result)
+               (ert-test-result-with-condition-condition result)
                '(ert-test-failed
                  ((should-error (signal 'arith-error nil)
                                 :type 'singularity-error)
@@ -1886,7 +1930,7 @@ This is an inverse of `add-to-list'."
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-failed))
       (should (equal
-               (ert-test-result-condition result)
+               (ert-test-result-with-condition-condition result)
                '(ert-test-failed
                  ((should-error (signal 'arith-error nil)
                                 :type 'singularity-error
@@ -1903,7 +1947,7 @@ This is an inverse of `add-to-list'."
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-failed))
       (should (equal
-               (ert-test-result-condition result)
+               (ert-test-result-with-condition-condition result)
                '(ert-test-failed
                  ((should-error (signal 'singularity-error nil)
                                 :type 'arith-error
@@ -1945,6 +1989,60 @@ This is an inverse of `add-to-list'."
             ((error)
              (should (equal actual-condition expected-condition)))))))
 
+(ert-deftest ert-test-messages-markers ()
+  (let* ((message-string "ERT test message")
+         (messages-buffer (get-buffer-create "*Messages*"))
+         (test (make-ert-test :body (lambda () (message "%s" message-string)))))
+    (with-current-buffer messages-buffer
+      (let ((begin (set-marker (make-marker) (point))))
+        (let ((result (ert-run-test test)))
+          (let ((end (point)))
+            (should (equal (buffer-substring begin
+                                             ;; Discard newline.
+                                             (1- end))
+                           message-string))
+            (should (= begin (ert-test-result-messages-begin-marker result)))
+            (should (= end (ert-test-result-messages-end-marker result)))))))))
+
+(ert-deftest ert-test-messages-markers-on-log-truncation ()
+  (let ((new-buffer-name (generate-new-buffer-name
+                          "*Messages* before ERT test")))
+    (unwind-protect
+        (progn
+          (with-current-buffer (get-buffer-create "*Messages*")
+            (rename-buffer new-buffer-name))
+          (let* ((message-format "ERT test message %3s")
+                 (message-length (length message-format))
+                 ;; Emacs would combine messages if we generate the
+                 ;; same message multiple times.
+                 (message-counter 0)
+                 (test (make-ert-test
+                        :body (lambda ()
+                                (message message-format message-counter)
+                                (incf message-counter)))))
+            (let ((message-log-max 10))
+              (let ((results
+                     (coerce (loop repeat 20
+                                   collect (ert-run-test test))
+                             'vector)))
+                (loop for i from 0 below 10 do
+                      (should (= (ert-test-result-messages-begin-marker
+                                  (elt results i))
+                                 1))
+                      (should (= (ert-test-result-messages-end-marker
+                                  (elt results i))
+                                 1)))
+                (let ((chars-per-line (1+ message-length)))
+                  (loop for i from 10 below 20 do
+                        (should (= (ert-test-result-messages-begin-marker
+                                    (elt results i))
+                                   (1+ (* (- i 10) chars-per-line))))
+                        (should (= (ert-test-result-messages-end-marker
+                                    (elt results i))
+                                   (1+ (* (- i 9) chars-per-line))))))))))
+      (kill-buffer "*Messages*")
+      (with-current-buffer new-buffer-name
+        (rename-buffer "*Messages*")))))
 
 ;; Test `ert-select-tests'.
 (ert-deftest ert-test-select-regexp ()
