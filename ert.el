@@ -462,10 +462,7 @@ DATA is displayed to the user and should state the reason of the failure."
 
 ;; The data structures that represent the result of running a test.
 (defstruct ert-test-result
-  ;; Markers delimiting the part of the *Messages* buffer generated
-  ;; during the execution of the test.
-  (messages-begin-marker nil)
-  (messages-end-marker nil)
+  (messages nil)
   )
 (defstruct (ert-test-passed (:include ert-test-result)))
 (defstruct (ert-test-result-with-condition (:include ert-test-result))
@@ -577,6 +574,23 @@ silently or calls the interactive debugger, as appropriate."
   (with-current-buffer (get-buffer-create "*Messages*")
     (set-marker (make-marker) (point-max))))
 
+(defun ert-force-message-log-buffer-truncation ()
+  (with-current-buffer (get-buffer-create "*Messages*")
+    ;; This is a reimplementation of this part of message_dolog() in xdisp.c:
+    ;; if (NATNUMP (Vmessage_log_max))
+    ;;   {
+    ;;     scan_newline (Z, Z_BYTE, BEG, BEG_BYTE,
+    ;;                   -XFASTINT (Vmessage_log_max) - 1, 0);
+    ;;     del_range_both (BEG, BEG_BYTE, PT, PT_BYTE, 0);
+    ;;   }
+    (when (and (integerp message-log-max) (>= message-log-max 0))
+      (let ((begin (point-min))
+            (end (save-excursion
+                   (goto-char (point-max))
+                   (forward-line (- message-log-max))
+                   (point))))
+        (delete-region begin end)))))
+
 (defun ert-run-test (test)
   "Run TEST.  Return the result and store it in TEST's `most-recent-result' slot."
   (setf (ert-test-most-recent-result test) nil)
@@ -584,17 +598,17 @@ silently or calls the interactive debugger, as appropriate."
     (lexical-let* ((begin-marker (ert-make-marker-in-messages-buffer))
                    (info (make-ert-test-execution-info
                           :test test
-                          :result (make-ert-test-aborted-with-non-local-exit
-                                   :messages-begin-marker begin-marker)
+                          :result (make-ert-test-aborted-with-non-local-exit)
                           :exit-continuation (lambda ()
                                                (return-from error nil)))))
       (unwind-protect
-          (ert-run-test-internal info)
+          (let ((message-log-max t))
+            (ert-run-test-internal info))
         (let ((result (ert-test-execution-info-result info)))
-          (setf (ert-test-result-messages-begin-marker result)
-                begin-marker
-                (ert-test-result-messages-end-marker result)
-                (ert-make-marker-in-messages-buffer))
+          (setf (ert-test-result-messages result)
+                (with-current-buffer (get-buffer-create "*Messages*")
+                  (buffer-substring begin-marker (point-max))))
+          (ert-force-message-log-buffer-truncation)
           (setf (ert-test-most-recent-result test) result)))))
   (ert-test-most-recent-result test))
 
@@ -1619,24 +1633,18 @@ To be used in the ERT results buffer."
          (entry (ewoc-data node))
          (test (ert-ewoc-entry-test entry))
          (result (ert-ewoc-entry-result entry)))
-    (let* ((begin (ert-test-result-messages-begin-marker result))
-           (end (ert-test-result-messages-end-marker result))
-           (messages (with-current-buffer (get-buffer-create "*Messages*")
-                       (buffer-substring begin end)))
-           (buffer
-            (let ((default-major-mode 'fundamental-mode))
-              (get-buffer-create "*ERT Messages*"))))
+    (let ((buffer
+           (let ((default-major-mode 'fundamental-mode))
+             (get-buffer-create "*ERT Messages*"))))
       (pop-to-buffer buffer)
       (setq buffer-read-only t)
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert messages)
+        (insert (ert-test-result-messages result))
         (goto-char (point-min))
         (insert "Messages for test `")
         (ert-insert-test-name-button (ert-test-name test))
-        (insert "':\n")
-        (when (= begin 1)
-          (insert "[...possibly truncated...]\n"))))))
+        (insert "':\n")))))
 
 (defun ert-results-toggle-printer-limits-for-test-at-point ()
   "Toggle how much of the condition to print for the test at point.
@@ -1989,60 +1997,47 @@ This is an inverse of `add-to-list'."
             ((error)
              (should (equal actual-condition expected-condition)))))))
 
-(ert-deftest ert-test-messages-markers ()
-  (let* ((message-string "ERT test message")
+(ert-deftest ert-test-messages ()
+  (let* ((message-string "Test message")
          (messages-buffer (get-buffer-create "*Messages*"))
          (test (make-ert-test :body (lambda () (message "%s" message-string)))))
     (with-current-buffer messages-buffer
-      (let ((begin (set-marker (make-marker) (point))))
-        (let ((result (ert-run-test test)))
-          (let ((end (point)))
-            (should (equal (buffer-substring begin
-                                             ;; Discard newline.
-                                             (1- end))
-                           message-string))
-            (should (= begin (ert-test-result-messages-begin-marker result)))
-            (should (= end (ert-test-result-messages-end-marker result)))))))))
+      (let ((result (ert-run-test test)))
+        (should (equal (concat message-string "\n")
+                       (ert-test-result-messages result)))))))
 
-(ert-deftest ert-test-messages-markers-on-log-truncation ()
-  (let ((new-buffer-name (generate-new-buffer-name
-                          "*Messages* before ERT test")))
+(defun ert-call-with-temporary-messages-buffer (thunk)
+  (lexical-let ((new-buffer-name (generate-new-buffer-name
+                                  "*Messages* orig buffer")))
     (unwind-protect
         (progn
           (with-current-buffer (get-buffer-create "*Messages*")
             (rename-buffer new-buffer-name))
-          (let* ((message-format "ERT test message %3s")
-                 (message-length (length message-format))
-                 ;; Emacs would combine messages if we generate the
-                 ;; same message multiple times.
-                 (message-counter 0)
-                 (test (make-ert-test
-                        :body (lambda ()
-                                (message message-format message-counter)
-                                (incf message-counter)))))
-            (let ((message-log-max 10))
-              (let ((results
-                     (coerce (loop repeat 20
-                                   collect (ert-run-test test))
-                             'vector)))
-                (loop for i from 0 below 10 do
-                      (should (= (ert-test-result-messages-begin-marker
-                                  (elt results i))
-                                 1))
-                      (should (= (ert-test-result-messages-end-marker
-                                  (elt results i))
-                                 1)))
-                (let ((chars-per-line (1+ message-length)))
-                  (loop for i from 10 below 20 do
-                        (should (= (ert-test-result-messages-begin-marker
-                                    (elt results i))
-                                   (1+ (* (- i 10) chars-per-line))))
-                        (should (= (ert-test-result-messages-end-marker
-                                    (elt results i))
-                                   (1+ (* (- i 9) chars-per-line))))))))))
+          (get-buffer-create "*Messages*")
+          (funcall thunk))
       (kill-buffer "*Messages*")
       (with-current-buffer new-buffer-name
         (rename-buffer "*Messages*")))))
+
+(ert-deftest ert-test-messages-on-log-truncation ()
+  (let ((test (make-ert-test
+               :body (lambda ()
+                       ;; Emacs would combine messages if we
+                       ;; generate the same message multiple
+                       ;; times.
+                       (message "a")
+                       (message "b")
+                       (message "c")
+                       (message "d")))))
+    (let (result)
+      (ert-call-with-temporary-messages-buffer
+       (lambda ()
+         (let ((message-log-max 2))
+           (setq result (ert-run-test test)))
+         (should (equal (with-current-buffer "*Messages*"
+                          (buffer-string))
+                        "c\nd\n"))))
+      (should (equal (ert-test-result-messages result) "a\nb\nc\nd\n")))))
 
 ;; Test `ert-select-tests'.
 (ert-deftest ert-test-select-regexp ()
@@ -2176,6 +2171,49 @@ This is an inverse of `add-to-list'."
     (should-not (ert-special-operator-p b))
     (fset b 'if)
     (should (ert-special-operator-p b))))
+
+;; This test attempts to demonstrate that there is no way to force
+;; immediate truncation of the *Messages* buffer from Lisp (and hence
+;; justifies the existence of
+;; `ert-force-message-log-buffer-truncation'): The only way that came
+;; to my mind was (message ""), which doesn't have the desired effect.
+(ert-deftest ert-test-builtin-message-log-flushing ()
+  (ert-call-with-temporary-messages-buffer
+   (lambda ()
+     (with-current-buffer "*Messages*"
+       (let ((message-log-max 2))
+         (let ((message-log-max t))
+           (loop for i below 4 do
+                 (message "%s" i))
+           (should (eql (count-lines (point-min) (point-max)) 4)))
+         (should (eql (count-lines (point-min) (point-max)) 4))
+         (message "")
+         (should (eql (count-lines (point-min) (point-max)) 4))
+         (message "Test message")
+         (should (eql (count-lines (point-min) (point-max)) 2)))))))
+
+(ert-deftest ert-test-force-message-log-buffer-truncation ()
+  (labels ((body ()
+             (loop for i below 5 do
+                   (message "%s" i)))
+           (c (x)
+             (ert-call-with-temporary-messages-buffer
+              (lambda ()
+                (let ((message-log-max x))
+                  (body))
+                (with-current-buffer "*Messages*"
+                  (buffer-string)))))
+           (lisp (x)
+             (ert-call-with-temporary-messages-buffer
+              (lambda ()
+                (let ((message-log-max t))
+                  (body))
+                (let ((message-log-max x))
+                  (ert-force-message-log-buffer-truncation))
+                (with-current-buffer "*Messages*"
+                  (buffer-string))))))
+    (loop for x in '(0 1 2 3 4 5 6 t) do
+          (should (equal (c x) (lisp x))))))
 
 ;; Run tests and make sure they actually ran.
 (let ((window-configuration (current-window-configuration)))
