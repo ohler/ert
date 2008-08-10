@@ -871,6 +871,11 @@ Returns nil if they are equal."
   "Format TIME in the particular variant of ISO 8601 used for timestamps in ERT."
   (format-time-string "%Y-%m-%d %T%z" time))
 
+(defun ert-insert-test-name-button (test-name)  
+  (insert-text-button (format "%S" test-name)
+                      :type 'ert-test-name-button
+                      'ert-test-name test-name))
+
 (defun ert-results-update-ewoc-hf (ewoc stats)
   "Update the header and footer of EWOC to show certain information from STATS.
 
@@ -924,20 +929,15 @@ Also sets `ert-results-progress-bar-button-begin'."
            (aborted
             (cond ((ert-stats-current-test stats)
                    (insert "Aborted during test: ")
-                   (let ((test-name (ert-test-name
-                                     (ert-stats-current-test stats))))
-                     (insert-text-button (format "%S" test-name)
-                                         :type 'ert-results-test-name-button
-                                         'ert-test-name test-name)))
+                   (ert-insert-test-name-button
+                    (ert-test-name (ert-stats-current-test stats))))
                   (t
                    (insert "Aborted."))))
            (running
             (assert (ert-stats-current-test stats))
             (insert "Running test: ")
-            (let ((test-name (ert-test-name (ert-stats-current-test stats))))
-              (insert-text-button (format "%S" test-name)
-                                  :type 'ert-results-test-name-button
-                                  'ert-test-name test-name)))
+            (ert-insert-test-name-button (ert-test-name
+                                          (ert-stats-current-test stats))))
            (finished
             (assert (not (ert-stats-current-test stats)))
             (insert "Finished.")))
@@ -1042,9 +1042,7 @@ Ensures a final newline is inserted."
                                                                     result)))
                                :type 'ert-results-expand-collapse-button)
            (insert " ")
-           (insert-text-button (format "%S" (ert-test-name test))
-                               :type 'ert-results-test-name-button
-                               'ert-test-name (ert-test-name test))
+           (ert-insert-test-name-button (ert-test-name test))
            (insert "\n")
            (when (and expandedp (not (eql result 'nil)))
              (etypecase result
@@ -1385,8 +1383,8 @@ Returns the stats object."
   'action #'ert-results-progress-bar-button-action
   'help-echo "mouse-2, RET: Reveal test result")
 
-(define-button-type 'ert-results-test-name-button
-  'action #'ert-results-test-name-button-action
+(define-button-type 'ert-test-name-button
+  'action #'ert-test-name-button-action
   'help-echo "mouse-2, RET: Find test definition")
 
 (define-button-type 'ert-results-expand-collapse-button
@@ -1436,7 +1434,7 @@ To be used in the ERT results buffer."
          (name (ert-test-name test)))
     (ert-find-test-other-window name)))
 
-(defun ert-results-test-name-button-action (button)
+(defun ert-test-name-button-action (button)
   "Find the definition of the test BUTTON belongs to, in another window."
   (let ((name (button-get button 'ert-test-name)))
     (ert-find-test-other-window name)))
@@ -1586,11 +1584,15 @@ To be used in the ERT results buffer."
          (setq buffer-read-only t)
          (let ((inhibit-read-only t))
            (erase-buffer)
+           ;; Use unibyte because `debugger-setup-buffer' also does so.
            (set-buffer-multibyte nil)
            (setq truncate-lines t)
            (ert-print-backtrace backtrace)
            (debugger-make-xrefs)
-           (goto-char (point-min))))))))
+           (goto-char (point-min))
+           (insert "Backtrace for test `")
+           (ert-insert-test-name-button (ert-test-name test))
+           (insert "':\n")))))))
 
 (defun ert-results-toggle-printer-limits-for-test-at-point ()
   "Toggle how much of the condition to print for the test at point.
