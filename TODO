@@ -1,0 +1,15 @@
+= TODO for ERT
+
+minor:
+* Don't run tests on load
+
+short-term:
+* Implement hooks in some way?
+* Manual (texinfo)
+* Port over some mode-unit assertions
+* Automated buffer-management
+* Visualize test results as overlays
+
+long-term:
+* Submit to GNU Emacs
+* Functions to deal with subprocesses
