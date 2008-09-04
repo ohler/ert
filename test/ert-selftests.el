@@ -3,10 +3,14 @@
 ;; Copyright (C) 2007, 2008 Christian M. Ohler
 ;; Licensed under the same terms as ERT.
 
-(add-to-list 'load-path (file-name-directory (or (buffer-file-name)
-                                                 load-file-name)))
-             
+(defvar ert-test-root
+  (file-name-directory (or (buffer-file-name) load-file-name))
+  "Location of root used for ert tests.")
+
+(add-to-list 'load-path ert-test-root)
+
 (require 'ert)
+(require 'ert-predicates)
 
 ;;; Self-tests.
 
@@ -523,17 +527,40 @@
     (loop for x in '(0 1 2 3 4 5 6 t) do
           (should (equal (c x) (lisp x))))))
 
+;;; Predicates
+
+(ert-deftest ert-buffer-changes-p ()
+             (with-temp-buffer
+               (should (buffer-changes-p
+                        (insert "hello")))
+               (should-not (buffer-changes-p
+                             (message "hello")))))
+
+(ert-deftest ert-error-p ()
+             (should (error-p (error "error")))
+             (should-not (error-p (+ 2 2))))
+
+(ert-deftest ert-buffer-contains-p ()
+             (with-temp-buffer
+               (insert "hello world")
+               (should (buffer-contains-p "hello")))
+               (should-not (buffer-contains-p "goodbye")))
+
+(ert-deftest ert-correctly-indented-p ()
+             (should (correctly-indented-p (concat ert-test-root "well-indented.el")))
+             (should-not (correctly-indented-p (concat ert-test-root "badly-indented.el"))))
+
 ;; Run tests and make sure they actually ran.
-(let ((window-configuration (current-window-configuration)))
-  (let ((ert-test-body-was-run nil))
-    ;; The buffer name chosen here should not compete with the default
-    ;; results buffer name for completion in `switch-to-buffer'.
-    (let ((stats (ert-run-tests-interactively "^ert-" " *ert self-tests*")))
-      (assert ert-test-body-was-run)
-      (when (zerop (+ (ert-stats-passed-unexpected stats)
-                      (ert-stats-failed-unexpected stats)
-                      (ert-stats-error-unexpected stats)))
-        ;; Hide results window only when everything went well.
-        (set-window-configuration window-configuration)))))
+(let ((window-configuration (current-window-configuration))
+      (ert-test-body-was-run nil)
+      ;; The buffer name chosen here should not compete with the default
+      ;; results buffer name for completion in `switch-to-buffer'.
+      (stats (ert-run-tests-interactively "^ert-" " *ert self-tests*")))
+  (assert ert-test-body-was-run)
+  (when (zerop (+ (ert-stats-passed-unexpected stats)
+                  (ert-stats-failed-unexpected stats)
+                  (ert-stats-error-unexpected stats)))
+    ;; Hide results window only when everything went well.
+    (set-window-configuration window-configuration)))
 
 (provide 'ert-selftests)
