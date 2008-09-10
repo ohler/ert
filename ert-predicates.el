@@ -38,14 +38,6 @@
        (string= buffer-changed-init-value
                 (buffer-string)))))
 
-(defmacro error-p (&rest body)
-  "Return t if the body signals an error."
-  `(condition-case err
-       (progn
-         ,@body
-         nil
-     (error t))))
-
 (defun buffer-contains-p (regexp &optional buffer)
   "Return t if contents of buffer (defaults to current) matches regexp."
   (save-excursion

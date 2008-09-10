@@ -1,0 +1,189 @@
+\input texinfo.tex    @c -*-texinfo-*-
+@c %**start of header
+@setfilename ert.info
+@settitle Emacs Lisp Regression Tests
+@c %**end of header
+
+@dircategory Emacs
+@direntry
+* ERT: (ert).        Emacs Lisp Regression Tests.
+@end direntry
+
+@copying
+Copyright @copyright{} 2008 Phil Hagelberg
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+Texts.
+@end quotation
+@end copying
+
+@node Top
+@top ERT Manual
+
+ERT is a tool for automated testing in Emacs Lisp.  Its main
+features are facilities for defining and running test cases and
+reporting the results as well as for debugging test failures
+interactively.
+
+@menu
+* Introduction::
+* Defining Tests::
+* Should Macro::
+* Test Selectors::
+* Comparison with Other Test Tools::
+@end menu
+
+@node Introduction
+@chapter Introduction
+
+ERT is designed for automating test for Emacs Lisp code. It may feel
+familiar if you have used classic tools like Test::Unit or xUnit, but
+it has a few features unique to the dynamic nature of Emacs.
+
+@node Defining Tests
+@chapter Defining Tests
+
+The @code{ert-deftest} function is used to define a new test. It is
+passed a name, an argument list (currently ignored), and a body. This
+sample from @emph{ert-selftests.el} shows its usage:
+
+@code{(ert-deftest addition-test ()
+  (should (= (+ 2 2) 4)))}
+
+This simply tests that the @code{+} operator is working
+correctly. Since it really just calls a function and checks its return
+value, it is a good example of a @emph{unit test}, which is one of two
+types of common automated test. The other is a functional test.
+
+@code{(ert-deftest print-test ()
+  (save-excursion (with-output-to-temp-buffer
+    (should (buffer-changes-p (print "hello"))))))}
+
+Functional tests ensure that higher-level functionality is
+working. Rather than simply testing the return value, it performs a
+more complex operation and ensures that the state after the operation
+is as expected.
+
+ERT includes support for both unit tests and functional tests.
+
+@node Should Macro
+@chapter Should Macro
+
+Test bodies may include any arbitrary code, but to be useful they will
+need to have checks to ensure that the code under test is performing
+as expected. @code{should} is similar to cl's @code{assert}, but
+signals a different error when its condition is violated that is
+caught and processed by ERT. In addition, it analyzes its argument
+form and records information that helps debugging.
+
+In addition to @code{should}, ERT provides @code{should-not}, which
+ensures that the predicate returns nil and @code{should-error}, which
+ensures that the body signals an error.
+
+@node Test Selectors
+@chapter Test Selectors
+
+Functions like @code{ert-run-tests-interactively} accept a test
+selector, which is a Lisp expression specifying a set of tests.  Each
+test name is a selector that refers to that test, the selector
+@code{t} refers to all tests, and the selector @code{:failed} refers
+to all tests that failed; but more complex selectors are
+available. Test selector syntax is similar to cl's type specifier
+syntax.
+
+@itemize
+@item @code{nil} -- Selects the empty set.
+@item @code{t} -- Selects UNIVERSE.
+@item @code{:new} -- Selects all tests that have not been run yet.
+@item @code{:failed}, @code{:passed}, @code{:error} -- Select tests according to their most recent result.
+@item @code{:expected}, @code{:unexpected} -- Select tests according to their most recent result.
+@item @code{a string} -- Selects all tests that have a name that matches the string, a regexp.
+@item @code{a test} -- Selects that test.
+@item @code{a symbol} -- Selects the test that the symbol names, errors if none.
+@end itemize
+
+In addition, more complex selectors exist:
+
+@itemize
+@item @code{(member TESTS...)} -- Selects TESTS, a list of tests or symbols naming tests.
+@item @code{(eql TEST)} -- Selects TEST, a test or a symbol naming a test.
+@item @code{(and SELECTORS...)} -- Selects the tests that match all SELECTORS.
+@item @code{(or SELECTORS...)} -- Selects the tests that match any SELECTOR.
+@item @code{(not SELECTOR)} -- Selects all tests that do not match SELECTOR.
+@item @code{(satisfies PREDICATE)} -- Selects all tests that satisfy PREDICATE.
+@end itemize
+
+@node Comparison with Other Test Tools
+@chapter Comparison with Other Test Tools
+ERT allows test-driven development similar to *Unit frameworks for
+other languages.  However, two common *Unit features are notably
+absent from ERT: fixtures and test suites.
+
+Fixtures, as used e.g. in SUnit or JUnit, have two main purposes:
+Setting up (and tearing down) an environment for a set of test
+cases, and making that environment accessible through object
+attributes that can be used like local variables.
+
+While fixtures are a great syntactic simplification in other
+languages, they are not very useful in Lisp, where higher-order
+functions and `unwind-protect' are available.  One way to implement
+and use a fixture in ERT is
+
+   (defun my-fixture (body)
+     (unwind-protect
+         (progn ...set up...
+                (funcall body))
+       ...tear down...))
+
+   (ert-deftest my-test ()
+     (my-fixture
+      (lambda ()
+        ...test code...)))
+
+(Another way would be a `with-my-fixture' macro.)  This solves the
+set-up and tear-down part, and additionally allows any test case to
+use any combination of fixtures, so it is more general than what
+other tools typically allow.
+
+If the test case needs access to the environment the fixture sets
+up, the fixture can be modified to pass arguments to the body.
+
+These are standard Lisp idioms.  Special syntax for them could be
+added easily enough, but would provide only a minor simplification.
+
+(Note that splitting set-up and tear-down into separate functions,
+like *Unit tools usually do, makes it impossible to establish
+dynamic `let' bindings as part of the fixture.  So, blindly
+imitating the way fixtures are implemented in other languages would
+be counter-productive in Lisp.)
+
+
+The purpose of test suites is to group related test cases together.
+The most common use of this is to run just the tests for one
+particular module.  Since symbol prefixes are the usual way of
+separating module namespaces in Emacs Lisp, test selectors already
+solve this by allowing regexp matching on test names; e.g., the
+selector "^ert-" selects ERT's self-tests.
+
+If test suites containing arbitrary sets of tests are found to be
+desirable, it would be easy to add a `define-test-selector'
+mechanism that introduces a new selector, defined in terms of
+existing ones; e.g.
+
+    ;; Note that `define-test-selector' does not exist yet.
+    (define-test-selector my-test-suite () `(member foo-test bar-test))
+
+would define a test suite named `my-test-suite' consisting of
+`foo-test' and `bar-test'.  See also `deftype' in Common Lisp.
+
+ERT ships with self-tests in the file ert-selftests.el. These
+are good examples of how tests should be written.
+
+
+@c M-x ert
+
+@bye

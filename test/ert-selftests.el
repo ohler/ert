@@ -536,10 +536,6 @@
                (should-not (buffer-changes-p
                              (message "hello")))))
 
-(ert-deftest ert-error-p ()
-             (should (error-p (error "error")))
-             (should-not (error-p (+ 2 2))))
-
 (ert-deftest ert-buffer-contains-p ()
              (with-temp-buffer
                (insert "hello world")

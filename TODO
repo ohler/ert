@@ -9,6 +9,7 @@ short-term:
 ** assert-font-lock
 * Automated buffer-management
 * Visualize test results as overlays
+* Add `skip' feature for tests that can't run in current environment
 
 long-term:
 * Submit to GNU Emacs
