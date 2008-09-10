@@ -29,7 +29,11 @@
 ;; interactively.
 ;;
 ;; See the manual distributed with ERT as well as the docstrings for
-;; more details.
+;; more details. To compile the manual, run `makeinfo ert.texinfo' in
+;; the ERT directory, then C-u M-x info ert.info in Emacs to view it.
+
+;; ERT ships with self-tests in the file ert-selftests.el. These are
+;; good examples of how tests should be written.
 
 ;;; Code:
 
@@ -40,7 +44,6 @@
 
 (defvar ert-debug-on-error nil
   "Non-nil means enter debugger when a test fails or terminates with an error.")
-
 
 ;;; Defining and locating tests.
 

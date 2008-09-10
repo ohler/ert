@@ -3,10 +3,15 @@
 short-term:
 * Implement hooks in some way?
 * Manual (texinfo)
+** Describe the interactive features
+** Install the manual upon compilation?
+
 * Port over some mode-unit assertions
 ** assert-face-at-point
 ** assert-overlay
 ** assert-font-lock
+
+* Any way to make ert-deftest only increase indentation by 2?
 * Automated buffer-management
 * Visualize test results as overlays
 * Add `skip' feature for tests that can't run in current environment
