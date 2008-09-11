@@ -1176,6 +1176,7 @@ Ensures a final newline is inserted."
     (ert-run-tests
      selector
      listener)))
+
 (defalias 'ert 'ert-run-tests-interactively)
 
 (defvar ert-batch-backtrace-right-margin 70

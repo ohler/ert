@@ -9,13 +9,13 @@
 
 (add-to-list 'load-path ert-test-root)
 
-(load "ert")
-(require 'ert-predicates)
+(load "../ert")
+(load "../ert-predicates")
 
 ;;; Self-tests.
 
 ;; Test that test bodies are actually run.
-(defvar ert-test-body-was-run)
+(defvar ert-test-body-was-run nil)
 (ert-deftest ert-test-body-runs ()
   (setq ert-test-body-was-run t))
 
