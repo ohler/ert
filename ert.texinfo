@@ -45,7 +45,22 @@ familiar if you have used classic tools like Test::Unit or xUnit, but
 it has a few unique features that take advantage of the dynamic and
 interactive nature of Emacs.
 
-@c A bit more about TDD, unit testing, why it's important
+ERT is designed with Test-Driven development in mind, though it can
+also be used to write tests for existing code. Test-Driven development
+is the process by which you write code by writing tests for as-yet
+nonexistent code. Tests get written, but they fail because there is no
+implementation for them yet. Then the implementation is written, and
+when the tests pass, you know the implementation is functional. Once
+you have it functional, you further refine the code to make it simpler
+and more readable, knowing that your test suite will inform you if
+anything breaks.
+
+Code written in this fashion turns out to be a lot more reliable as
+well as easier to maintain if you are disciplined in only implementing
+any feature once there are already failing tests that cover all
+important aspects of that feature. But sometimes code gets written
+that doesn't have tests, in which case you will have to write tests
+after the fact. ERT works great for both cases.
 
 @node Defining Tests
 @chapter Defining Tests
@@ -54,7 +69,7 @@ The @code{ert-deftest} function is used to define a new test. It is
 passed a name, an argument list (currently ignored), and a body. This
 sample from @file{ert-selftests.el} shows its usage:
 
-@c what's the deal with arg lists being ignored?
+@c what's the deal with supplying an arg list if it just gets ignored?
 
 @lisp
 (ert-deftest addition-test ()

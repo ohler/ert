@@ -1,10 +1,10 @@
 = TODO for ERT
 
 short-term:
-* Implement hooks in some way?
 * Manual (texinfo)
 ** Describe the interactive features
 ** Install the manual upon compilation?
+** Publish the manual as HTML
 
 * Port over some mode-unit assertions
 ** assert-face-at-point

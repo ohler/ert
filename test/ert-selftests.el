@@ -9,7 +9,7 @@
 
 (add-to-list 'load-path ert-test-root)
 
-(require 'ert)
+(load "ert")
 (require 'ert-predicates)
 
 ;;; Self-tests.
