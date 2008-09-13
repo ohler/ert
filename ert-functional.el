@@ -67,6 +67,7 @@
      (insert contents)
      (beginning-of-buffer)
      ,@body))
+(put 'with-test-buffer 'lisp-indent-function 1)
 
 (provide 'ert-predicates)
 ;;; ert-predicates.el ends here
