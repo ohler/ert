@@ -61,5 +61,12 @@
         (kill-buffer nil)
         (string= buffer-original-indentation buffer-new-indentation)))))
 
+(defmacro with-test-buffer (contents &rest body)
+  "Runs BODY in a buffer containing CONTENTS."
+  `(with-temp-buffer
+     (insert contents)
+     (beginning-of-buffer)
+     ,@body))
+
 (provide 'ert-predicates)
 ;;; ert-predicates.el ends here

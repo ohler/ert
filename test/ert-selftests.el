@@ -546,6 +546,19 @@
   (should (correctly-indented-p (concat ert-test-root "well-indented.el")))
   (should-not (correctly-indented-p (concat ert-test-root "badly-indented.el"))))
 
+;;; Utilities
+
+(ert-deftest ert-with-test-buffer ()
+  (let ((contents "Foo bar\n  baz\n\tbip"))
+    (with-test-buffer contents
+      (should (string-equal (buffer-string) contents)))))
+
+(ert-deftest ert-with-test-buffer-inserting ()
+  (let ((contents "Foo bar\n  baz\n\tbip"))
+    (with-test-buffer contents
+      (insert "Hello\n")
+      (should (string-equal (buffer-string) (concat "Hello\n" contents))))))
+
 ;; Run tests and make sure they actually ran.
 (let ((window-configuration (current-window-configuration))
       (ert-test-body-was-run nil)
