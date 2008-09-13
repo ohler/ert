@@ -2,7 +2,6 @@
 
 short-term:
 * Manual (texinfo)
-** Describe the interactive features
 ** Install the manual upon compilation?
 ** Publish the manual as HTML
 
@@ -11,6 +10,8 @@ short-term:
 ** assert-overlay
 ** assert-font-lock
 
+* Results buffer maybe shouldn't begin with a space?
+* What's the purpose of empty arg list in ert-deftest?
 * Any way to make ert-deftest only increase indentation by 2?
 * Automated buffer-management
 * Visualize test results as overlays

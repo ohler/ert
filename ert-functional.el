@@ -1,4 +1,4 @@
-;;; ert-predicates.el --- Extra Predicates for Emacs Lisp Regression Testing
+;;; ert-functional.el --- Functional Emacs Lisp Regression Testing Helpers
 
 ;; Copyright (C) 2008 Phil Hagelberg
 
@@ -49,8 +49,8 @@
     (if buffer (switch-to-buffer buffer))
     (not (not (search-forward-regexp regexp nil t)))))
 
-(defun correctly-indented-p (filename)
-  "Returns t if the buffer is already indented the way Emacs would indent it."
+(defun correctly-indents-p (filename)
+  "Returns t if Emacs indents the filename the same way it's already indented."
   (save-excursion
     (find-file filename)
     (let ((buffer-original-indentation (buffer-string))
@@ -61,5 +61,5 @@
         (kill-buffer nil)
         (string= buffer-original-indentation buffer-new-indentation)))))
 
-(provide 'ert-predicates)
-;;; ert-predicates.el ends here
+(provide 'ert-functional)
+;;; ert-functional.el ends here
