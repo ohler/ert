@@ -10,7 +10,7 @@
 (add-to-list 'load-path ert-test-root)
 
 (load "../ert")
-(load "../ert-predicates")
+(load "../ert-functional")
 
 ;;; Self-tests.
 

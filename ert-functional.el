@@ -23,11 +23,16 @@
 
 ;;; Commentary:
 
-;; This file includes some extra higher-level predicates to use while
-;; writing automated tests with ert.el.
+;; This file includes some extra higher-level helper functions to use
+;; while writing automated tests with ert.el. This includes extra
+;; predicates and buffer-management functions.
+
+;; For the purposes of ERT, unit tests are defined as tests that just
+;; check return values, and functional tests are anything higher-level
+;; than that.
 
 ;; Since it is not meant to be loaded during normal use, this file
-;; includes functions that are not prefixed.
+;; includes functions that are not prefixed for readability's sake.
 
 ;;; Code:
 
