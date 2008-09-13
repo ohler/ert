@@ -530,21 +530,21 @@
 ;;; Predicates
 
 (ert-deftest ert-buffer-changes-p ()
-             (with-temp-buffer
-               (should (buffer-changes-p
-                        (insert "hello")))
-               (should-not (buffer-changes-p
-                             (message "hello")))))
+  (with-temp-buffer
+    (should (buffer-changes-p
+             (insert "hello")))
+    (should-not (buffer-changes-p
+                 (message "hello")))))
 
 (ert-deftest ert-buffer-contains-p ()
-             (with-temp-buffer
-               (insert "hello world")
-               (should (buffer-contains-p "hello")))
-               (should-not (buffer-contains-p "goodbye")))
+  (with-temp-buffer
+    (insert "hello world")
+    (should (buffer-contains-p "hello")))
+  (should-not (buffer-contains-p "goodbye")))
 
 (ert-deftest ert-correctly-indented-p ()
-             (should (correctly-indented-p (concat ert-test-root "well-indented.el")))
-             (should-not (correctly-indented-p (concat ert-test-root "badly-indented.el"))))
+  (should (correctly-indented-p (concat ert-test-root "well-indented.el")))
+  (should-not (correctly-indented-p (concat ert-test-root "badly-indented.el"))))
 
 ;; Run tests and make sure they actually ran.
 (let ((window-configuration (current-window-configuration))
