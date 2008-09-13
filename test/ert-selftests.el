@@ -559,6 +559,15 @@
       (insert "Hello\n")
       (should (string-equal (buffer-string) (concat "Hello\n" contents))))))
 
+(ert-deftest ert-with-test-buffer-mark ()
+  (with-test-buffer "Foo<mark> bar baz"
+    (should (string-equal (buffer-substring (point) (mark)) "Foo"))
+    (should (string-equal (buffer-string) "Foo bar baz"))))
+
+(ert-deftest ert-with-test-buffer-fake-mark ()
+  (with-test-buffer "Foo\\<mark> bar baz"
+    (should (string-equal (buffer-string) "Foo<mark> bar baz"))))
+
 ;; Run tests and make sure they actually ran.
 (let ((window-configuration (current-window-configuration))
       (ert-test-body-was-run nil)

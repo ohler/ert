@@ -61,11 +61,32 @@
         (kill-buffer nil)
         (string= buffer-original-indentation buffer-new-indentation)))))
 
+(defun ert-test-buffer-substitute (string fn)
+  "Removes the all occurrences of STRING in the buffer
+and runs FN with at that point each one is removed.
+
+Backslash-escaped STRINGs are unescaped and ignored."
+  (let ((len (length string)))
+    (save-excursion
+      (beginning-of-buffer)
+      (while (search-forward string nil t)
+        (save-excursion
+          (backward-char len)
+          (if (eq (char-before (point)) ?\\) (delete-char -1)
+            (delete-char len)
+            (funcall fn)))))))
+
 (defmacro with-test-buffer (contents &rest body)
-  "Runs BODY in a buffer containing CONTENTS."
+  "Runs BODY in a buffer containing CONTENTS.
+
+The mark may be set in the buffer using the string \"<mark>\".
+This can be escaped with a backslash to unclude it literally."
   `(with-temp-buffer
-     (insert contents)
+     (insert ,contents)
      (beginning-of-buffer)
+     (let ((new-mark))
+       (ert-test-buffer-substitute "<mark>" (lambda () (setq new-mark (point))))
+       (set-mark new-mark))
      ,@body))
 (put 'with-test-buffer 'lisp-indent-function 1)
 
