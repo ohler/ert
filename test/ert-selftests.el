@@ -568,6 +568,16 @@
   (with-test-buffer "Foo\\<mark> bar baz"
     (should (string-equal (buffer-string) "Foo<mark> bar baz"))))
 
+(ert-deftest ert-with-test-buffer-point ()
+  (with-test-buffer "Foo bar<point> baz"
+    (insert "bell")
+    (should (string-equal (buffer-string) "Foo barbell baz"))))
+
+(ert-deftest ert-with-test-buffer-mark-and-point ()
+  (with-test-buffer "Foo <mark>bar<point> baz"
+    (upcase-region (mark) (point))
+    (should (string-equal (buffer-string) "Foo BAR baz"))))
+
 ;; Run tests and make sure they actually ran.
 (let ((window-configuration (current-window-configuration))
       (ert-test-body-was-run nil)

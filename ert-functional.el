@@ -84,9 +84,14 @@ This can be escaped with a backslash to unclude it literally."
   `(with-temp-buffer
      (insert ,contents)
      (beginning-of-buffer)
+
      (let ((new-mark))
        (ert-test-buffer-substitute "<mark>" (lambda () (setq new-mark (point))))
        (set-mark new-mark))
+
+     (let ((new-point (point)))
+       (ert-test-buffer-substitute "<point>" (lambda () (setq new-point (point))))
+       (goto-char new-point))
      ,@body))
 (put 'with-test-buffer 'lisp-indent-function 1)
 
