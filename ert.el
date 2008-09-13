@@ -1561,11 +1561,13 @@ This is an inverse of `add-to-list'."
                                  (:eval
                                   (ert-tests-running-mode-line-indicator))))
 (add-to-list 'emacs-lisp-mode-hook 'ert-activate-font-lock-keywords)
+(put 'ert-deftest 'lisp-indent-function 2)
 
 (defun ert-unload-function ()
   (ert-remove-from-list 'find-function-regexp-alist 'ert-deftest :key #'car)
   (ert-remove-from-list 'minor-mode-alist 'ert-current-run-stats :key #'car)
   (ert-remove-from-list 'emacs-lisp-mode-hook 'ert-activate-font-lock-keywords)
+  (put 'ert-deftest 'lisp-indent-function nil)
   nil)
 
 (defvar ert-unload-hook '())
