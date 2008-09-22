@@ -831,7 +831,8 @@ Returns nil if they are equal."
                    ;; This would be even more helpful if it showed
                    ;; something like what `set-difference' would
                    ;; return.
-                   `(proper-lists-of-different-length ,a ,b)
+                   `(proper-lists-of-different-length ,(length a) ,(length b)
+                                                      ,a ,b)
                  (loop for i from 0
                        for ai in a
                        for bi in b
