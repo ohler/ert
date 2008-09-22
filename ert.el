@@ -463,6 +463,7 @@ DATA is displayed to the user and should state the reason of the failure."
 ;; The data structures that represent the result of running a test.
 (defstruct ert-test-result
   (messages nil)
+  (should-forms nil)
   )
 (defstruct (ert-test-passed (:include ert-test-result)))
 (defstruct (ert-test-result-with-condition (:include ert-test-result))
@@ -591,6 +592,8 @@ silently or calls the interactive debugger, as appropriate."
                    (point))))
         (delete-region begin end)))))
 
+(defvar ert-should-execution-observer nil)
+
 (defun ert-run-test (test)
   "Run TEST.  Return the result and store it in TEST's `most-recent-result' slot."
   (setf (ert-test-most-recent-result test) nil)
@@ -600,20 +603,31 @@ silently or calls the interactive debugger, as appropriate."
                           :test test
                           :result (make-ert-test-aborted-with-non-local-exit)
                           :exit-continuation (lambda ()
-                                               (return-from error nil)))))
+                                               (return-from error nil))))
+                   (should-form-accu (list)))
       (unwind-protect
-          (let ((message-log-max t))
+          (let ((ert-should-execution-observer
+                 (lambda (form-description)
+                   (push form-description should-form-accu)))
+                (message-log-max t))
             (ert-run-test-internal info))
         (let ((result (ert-test-execution-info-result info)))
           (setf (ert-test-result-messages result)
                 (with-current-buffer (get-buffer-create "*Messages*")
                   (buffer-substring begin-marker (point-max))))
           (ert-force-message-log-buffer-truncation)
+          (setq should-form-accu (nreverse should-form-accu))
+          (setf (ert-test-result-should-forms result)
+                should-form-accu)
           (setf (ert-test-most-recent-result test) result)))))
   (ert-test-most-recent-result test))
 
 
 ;;; The `should' macros.
+
+(defun ert-signal-should-execution (form-description)
+  (when ert-should-execution-observer
+    (funcall ert-should-execution-observer form-description)))
 
 (eval-and-compile
   (defun ert-special-operator-p (thing)
@@ -622,13 +636,7 @@ silently or calls the interactive debugger, as appropriate."
          (let ((definition (indirect-function thing t)))
            (and (subrp definition)
                 (eql (cdr (subr-arity definition)) 'unevalled)))))
-  (defun ert-expand-should (whole form env inner-expander)
-    "Helper function for the `should' macro and its variants.
-
-Analyzes FORM and produces an expression that has the same
-semantics under evaluation but records additional debugging
-information.  INNER-EXPANDER adds the actual checks specific to
-the particular variant of `should'."
+  (defun ert-expand-should-1 (whole form env inner-expander)
     (let ((form (macroexpand form env)))
       ;; It's sort of a wart that `inner-expander' can't influence the
       ;; value the expansion returns.
@@ -669,7 +677,34 @@ the particular variant of `should'."
                                      (when -explainer-
                                        (list :explanation
                                              (apply -explainer- ,args))))))
-                 ,value)))))))))
+                 ,value))))))))
+  (defun ert-expand-should (whole form env inner-expander)
+    "Helper function for the `should' macro and its variants.
+
+Analyzes FORM and returns an expression that has the same
+semantics under evaluation but records additional debugging
+information.
+
+INNER-EXPANDER should be a function and is called with two
+arguments: INNER-FORM and FORM-DESCRIPTION-FORM, where INNER-FORM
+is an expression equivalent to FORM, and FORM-DESCRIPTION-FORM is
+an expression that returns a description of FORM.  INNER-EXPANDER
+should return code that calls INNER-FORM and performs the checks
+and error signalling specific to the particular variant of
+`should'.  The code that INNER-EXPANDER returns must not call
+FORM-DESCRIPTION-FORM before it has called INNER-FORM."
+    (lexical-let ((inner-expander inner-expander))
+      (ert-expand-should-1
+       whole form env
+       (lambda (inner-form form-description-form)
+         (let ((form-description (gensym "form-description-")))
+           `(let (,form-description)
+              ,(funcall inner-expander
+                        `(unwind-protect
+                             ,inner-form
+                           (setq ,form-description ,form-description-form)
+                           (ert-signal-should-execution ,form-description))
+                        `,form-description))))))))
 
 (defmacro* should (form &environment env)
   "Evaluate FORM.  If it returns nil, abort the current test as failed.
@@ -1054,6 +1089,14 @@ Ensures a final newline is inserted."
       (goto-char begin)
       (indent-sexp))))
 
+(defun ert-make-xrefs-region (begin end)
+  (save-restriction
+    (narrow-to-region begin (point))
+    ;; Inhibit optimization in `debugger-make-xrefs' that would
+    ;; sometimes insert unrelated backtrace info into our buffer.
+    (let ((debugger-previous-backtrace nil))
+      (debugger-make-xrefs))))
+
 (defun ert-print-test-for-ewoc (entry)
   "The ewoc print function for ewoc test entries."
   (let* ((test (ert-ewoc-entry-test entry))
@@ -1081,18 +1124,12 @@ Ensures a final newline is inserted."
                (ert-test-result-with-condition
                 (insert "    ")
                 (let ((print-escape-newlines t)
-                      (print-level (if extended-printer-limits-p 10 5))
+                      (print-level (if extended-printer-limits-p 12 5))
                       (print-length (if extended-printer-limits-p 100 10)))
                   (let ((begin (point)))
                     (ert-pp-with-indentation-and-newline
                      (ert-test-result-with-condition-condition result))
-                    (save-restriction
-                      (narrow-to-region begin (point))
-                      ;; Inhibit optimization in `debugger-make-xrefs'
-                      ;; that sometimes inserts unrelated backtrace
-                      ;; info into our buffer.
-                      (let ((debugger-previous-backtrace nil))
-                        (debugger-make-xrefs))))))
+                    (ert-make-xrefs-region begin (point)))))
                (ert-test-aborted-with-non-local-exit
                 (insert "    aborted\n")))
              (insert "\n")))))
@@ -1403,6 +1440,7 @@ Returns the stats object."
         ("m" ert-results-pop-to-messages-for-test-at-point)
         ("p" ert-results-toggle-printer-limits-for-test-at-point)
         ("D" ert-delete-test)
+        ("l" ert-results-pop-to-should-forms-for-test-at-point)
         ([tab] forward-button)
         ([backtab] backward-button)
         )
@@ -1645,6 +1683,41 @@ To be used in the ERT results buffer."
         (insert "Messages for test `")
         (ert-insert-test-name-button (ert-test-name test))
         (insert "':\n")))))
+
+(defun ert-results-pop-to-should-forms-for-test-at-point ()
+  "Display the list of `should' forms executed during the test at point.
+
+To be used in the ERT results buffer."
+  (interactive)
+  (let* ((node (ert-results-test-node-at-point))
+         (entry (ewoc-data node))
+         (test (ert-ewoc-entry-test entry))
+         (result (ert-ewoc-entry-result entry)))
+    (let ((buffer
+           (let ((default-major-mode 'fundamental-mode))
+             (get-buffer-create "*ERT list of should forms*"))))
+      (pop-to-buffer buffer)
+      (setq buffer-read-only t)
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (if (null (ert-test-result-should-forms result))
+            (insert "\n(No should forms during this test.)\n")
+          (loop for form-description in (ert-test-result-should-forms result)
+                for i from 1 do
+                (insert "\n")
+                (insert (format "%s: " i))
+                (let ((begin (point)))
+                  (ert-pp-with-indentation-and-newline form-description)
+                  (ert-make-xrefs-region begin (point)))))
+        (goto-char (point-min))
+        (insert "`should' forms executed during test `")
+        (ert-insert-test-name-button (ert-test-name test))
+        (insert "':\n")
+        (insert "\n")
+        (insert (concat "(Values are shallow copies and may have "
+                        "looked different during the test if they\n"
+                        "have been modified destructively.)\n"))
+        (forward-line 1)))))
 
 (defun ert-results-toggle-printer-limits-for-test-at-point ()
   "Toggle how much of the condition to print for the test at point.
@@ -2123,7 +2196,6 @@ This is an inverse of `add-to-list'."
   (should-error (ert-parse-keys-and-body '(:bar foo :a))))
 
 
-
 ;; Test `ert-run-tests'.
 (ert-deftest ert-test-run-tests ()
   (let ((passing-test (make-ert-test :name 'passing-test
@@ -2214,6 +2286,49 @@ This is an inverse of `add-to-list'."
                   (buffer-string))))))
     (loop for x in '(0 1 2 3 4 5 6 t) do
           (should (equal (c x) (lisp x))))))
+
+(ert-deftest ert-test-list-of-should-forms ()
+  (let ((test (make-ert-test :body (lambda ()
+                                     (should t)
+                                     (should (null '()))
+                                     (should nil)
+                                     (should t)))))
+    (let ((result (let ((ert-debug-on-error nil))
+                    (ert-run-test test))))
+      (should (equal (ert-test-result-should-forms result)
+                     '(((should t) :form t :value t)
+                       ((should (null '())) :form (null nil) :value t)
+                       ((should nil) :form nil :value nil)))))))
+
+(ert-deftest ert-test-list-of-should-forms-observers-should-not-stack ()
+  (let ((test (make-ert-test
+               :body (lambda ()
+                       (let ((test2 (make-ert-test
+                                     :body (lambda ()
+                                             (should t)))))
+                         (let ((result (ert-run-test test2)))
+                           (should (typep result 'ert-test-passed))))))))
+    (let ((result (let ((ert-debug-on-error nil))
+                    (ert-run-test test))))
+      (should (typep result 'ert-test-passed))
+      (should (eql (length (ert-test-result-should-forms result))
+                   1)))))
+
+(ert-deftest ert-test-list-of-should-forms-no-deep-copy ()
+  (let ((test (make-ert-test :body (lambda ()
+                                     (let ((obj (list 'a)))
+                                       (should (equal obj '(a)))
+                                       (setf (car obj) 'b)
+                                       (should (equal obj '(b))))))))
+    (let ((result (let ((ert-debug-on-error nil))
+                    (ert-run-test test))))
+      (should (typep result 'ert-test-passed))
+      (should (equal (ert-test-result-should-forms result)
+                     '(((should (equal obj '(a))) :form (equal (b) (a)) :value t
+                        :explanation nil)
+                       ((should (equal obj '(b))) :form (equal (b) (b)) :value t
+                        :explanation nil)
+                       ))))))
 
 ;; Run tests and make sure they actually ran.
 (let ((window-configuration (current-window-configuration)))
