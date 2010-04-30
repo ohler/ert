@@ -264,6 +264,9 @@ and the body."
        ;; and has no mechanism for extension.
        (push '(ert-deftest . ,name) current-load-list)
        ',name)))
+;; TODO(ohler): figure out what this means
+(put 'ert-deftest 'lisp-indent-function 2)
+(put 'ert-deftest 'lisp-indent-hook 2)
 
 (defun ert-read-test-name (prompt &optional default-value history)
   "Read the name of a test and return it as a symbol.
@@ -779,6 +782,11 @@ element of TYPE.  TEST should be a predicate."
    (when (not (consp (cdr fast))) (return nil))
    (when (and (not firstp) (eq fast slow)) (return nil))))
 
+(defun ert-explain-format-atom (x)
+  (typecase x
+    (fixnum (format "%s #x%x ?%c" x x x))
+    (t x)))
+
 (defun ert-explain-not-equal (a b)
   "Return a programmer-readable explanation of why A and B are not `equal'.
 
@@ -817,7 +825,8 @@ Returns nil if they are equal."
                      for xi = (ert-explain-not-equal ai bi)
                      do (when xi (return `(array-elt ,i ,xi))))))
       (atom (if (not (equal a b))
-                `(different-atoms ,a ,b)
+                `(different-atoms ,(ert-explain-format-atom a)
+                                  ,(ert-explain-format-atom b))
               nil)))))
 (put 'equal 'ert-explainer 'ert-explain-not-equal)
 
@@ -905,6 +914,11 @@ Returns nil if they are equal."
                       :type 'ert-test-name-button
                       'ert-test-name test-name))
 
+(defun ert-results-format-expected-unexpected (expected unexpected)
+  (if (zerop unexpected)
+      (format "%s" expected)
+    (format "%s (%s unexpected)" (+ expected unexpected) unexpected)))
+
 (defun ert-results-update-ewoc-hf (ewoc stats)
   "Update the header and footer of EWOC to show certain information from STATS.
 
@@ -924,19 +938,19 @@ Also sets `ert-results-progress-bar-button-begin'."
        (ert-insert-human-readable-selector (ert-stats-selector stats))
        (insert "\n")
        (insert
-        (format (concat "Passed: %s (%s unexpected)\n"
-                        "Failed: %s (%s unexpected)\n"
-                        "Error:  %s (%s unexpected)\n"
+        (format (concat "Passed: %s\n"
+                        "Failed: %s\n"
+                        "Error:  %s\n"
                         "Total:  %s/%s\n\n")
-                (+ (ert-stats-passed-expected stats)
-                   (ert-stats-passed-unexpected stats))
-                (ert-stats-passed-unexpected stats)
-                (+ (ert-stats-failed-expected stats)
-                   (ert-stats-failed-unexpected stats))
-                (ert-stats-failed-unexpected stats)
-                (+ (ert-stats-error-expected stats)
-                   (ert-stats-error-unexpected stats))
-                (ert-stats-error-unexpected stats)
+                (ert-results-format-expected-unexpected
+                 (ert-stats-passed-expected stats)
+                 (ert-stats-passed-unexpected stats))
+                (ert-results-format-expected-unexpected
+                 (ert-stats-failed-expected stats)
+                 (ert-stats-failed-unexpected stats))
+                (ert-results-format-expected-unexpected
+                 (ert-stats-error-expected stats)
+                 (ert-stats-error-unexpected stats))
                 run-count
                 (ert-stats-total stats)))
        (insert
@@ -1081,7 +1095,7 @@ Ensures a final newline is inserted."
                (ert-test-result-with-condition
                 (insert "    ")
                 (let ((print-escape-newlines t)
-                      (print-level (if extended-printer-limits-p 10 5))
+                      (print-level (if extended-printer-limits-p 10 6))
                       (print-length (if extended-printer-limits-p 100 10)))
                   (let ((begin (point)))
                     (ert-pp-with-indentation-and-newline
@@ -2156,9 +2170,9 @@ This is an inverse of `add-to-list'."
                                                (point)))
                            (concat
                             "Selector: (member <passing-test> <failing-test>)\n"
-                            "Passed: 1 (0 unexpected)\n"
+                            "Passed: 1\n"
                             "Failed: 1 (1 unexpected)\n"
-                            "Error:  0 (0 unexpected)\n"
+                            "Error:  0\n"
                             "Total:  2/2\n")))))
             (when (get-buffer buffer-name)
               (kill-buffer buffer-name))))))))
