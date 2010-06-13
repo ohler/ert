@@ -891,7 +891,6 @@ Returns nil if they are equal."
   (test-results (assert nil) :type vector)
   ;; The expected result types of the tests, in order.
   (test-results-expected (assert nil) :type vector)
-  (total (assert nil))
   (passed-expected 0)
   (passed-unexpected 0)
   (failed-expected 0)
@@ -902,6 +901,25 @@ Returns nil if they are equal."
   (end-time nil)
   (aborted-p nil)
   (current-test nil))
+
+(defun ert-stats-completed-expected (stats)
+  (+ (ert-stats-passed-expected stats)
+     (ert-stats-failed-expected stats)
+     (ert-stats-error-expected stats)))
+
+(defun ert-stats-completed-unexpected (stats)
+  (+ (ert-stats-passed-unexpected stats)
+     (ert-stats-failed-unexpected stats)
+     (ert-stats-error-unexpected stats)))
+
+(defun ert-stats-completed (stats) 
+  "Number of tests in STATS that have run so far."
+  (+ (ert-stats-completed-expected stats)
+     (ert-stats-completed-unexpected stats)))
+
+(defun ert-stats-total (stats)
+  "Number of tests in STATS, regardless of whether they have run yet."
+  (length (ert-stats-tests stats)))
 
 ;; An entry in the results buffer ewoc.  There is one entry per test.
 (defstruct ert-ewoc-entry
@@ -959,12 +977,7 @@ Returns nil if they are equal."
   "Update the header and footer of EWOC to show certain information from STATS.
 
 Also sets `ert-results-progress-bar-button-begin'."
-  (let ((run-count (+ (ert-stats-passed-expected stats)
-                      (ert-stats-passed-unexpected stats)
-                      (ert-stats-failed-expected stats)
-                      (ert-stats-failed-unexpected stats)
-                      (ert-stats-error-expected stats)
-                      (ert-stats-error-unexpected stats)))
+  (let ((run-count (ert-stats-completed stats))
         (results-buffer (current-buffer)))
     (ewoc-set-hf
      ewoc
@@ -1078,12 +1091,7 @@ Also sets `ert-results-progress-bar-button-begin'."
 (defun ert-tests-running-mode-line-indicator ()
   (let* ((stats ert-current-run-stats)
          (tests-total (ert-stats-total stats))
-         (tests-completed (+ (ert-stats-passed-expected stats)
-                             (ert-stats-passed-unexpected stats)
-                             (ert-stats-failed-expected stats)
-                             (ert-stats-failed-unexpected stats)
-                             (ert-stats-error-expected stats)
-                             (ert-stats-error-unexpected stats))))
+         (tests-completed (ert-stats-completed stats)))
     (if (>= tests-completed tests-total)
         (format " ERT(%s/%s,finished)" tests-completed tests-total)
       (format " ERT(%s/%s):%s"
@@ -1239,7 +1247,6 @@ Ensures a final newline is inserted."
                                 :test-results (make-vector (length tests) nil)
                                 :test-results-expected (make-vector
                                                         (length tests) nil)
-                                :total (length tests)
                                 :start-time (current-time))))
     (funcall listener 'run-started stats)
     (let ((abortedp t))
@@ -1301,13 +1308,9 @@ Ensures a final newline is inserted."
                               ""
                             "Aborted: ")
                           (ert-stats-total stats)
-                          (+ (ert-stats-passed-expected stats)
-                             (ert-stats-failed-expected stats)
-                             (ert-stats-error-expected stats))
+                          (ert-stats-completed-expected stats)
                           (let ((unexpected
-                                 (+ (ert-stats-passed-unexpected stats)
-                                    (ert-stats-failed-unexpected stats)
-                                    (ert-stats-error-unexpected stats))))
+                                 (ert-stats-completed-unexpected stats)))
                             (if (zerop unexpected)
                                 ""
                               (format ", %s unexpected" unexpected))))
@@ -1372,17 +1375,13 @@ Returns the stats object."
                    (ert-format-time-iso8601 (ert-stats-start-time stats)))))
        (run-ended
         (destructuring-bind (stats abortedp) event-args
-          (let ((unexpected (+ (ert-stats-passed-unexpected stats)
-                               (ert-stats-failed-unexpected stats)
-                               (ert-stats-error-unexpected stats))))
+          (let ((unexpected (ert-stats-completed-unexpected stats)))
             (message "\n%sRan %s tests, %s results were as expected%s (%s)\n"
                      (if (not abortedp)
                          ""
                        "Aborted: ")
                      (ert-stats-total stats)
-                     (+ (ert-stats-passed-expected stats)
-                        (ert-stats-failed-expected stats)
-                        (ert-stats-error-expected stats))
+                     (ert-stats-completed-expected stats)
                      (if (zerop unexpected)
                          ""
                        (format ", %s unexpected" unexpected))
@@ -2352,9 +2351,7 @@ This is an inverse of `add-to-list'."
     ;; results buffer name for completion in `switch-to-buffer'.
     (let ((stats (ert-run-tests-interactively "^ert-" " *ert self-tests*")))
       (assert ert-test-body-was-run)
-      (when (zerop (+ (ert-stats-passed-unexpected stats)
-                      (ert-stats-failed-unexpected stats)
-                      (ert-stats-error-unexpected stats)))
+      (when (zerop (ert-stats-completed-unexpected stats))
         ;; Hide results window only when everything went well.
         (set-window-configuration window-configuration)))))
 
