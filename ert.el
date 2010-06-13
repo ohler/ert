@@ -1023,6 +1023,12 @@ Returns nil if they are equal."
   (test-results (assert nil) :type vector)
   ;; The expected result types of the tests, in order.
   (test-results-expected (assert nil) :type vector)
+  ;; The start times of the tests, in order, as reported by
+  ;; `current-time'.
+  (test-start-times (assert nil) :type vector)
+  ;; The end times of the tests, in order, as reported by
+  ;; `current-time'.
+  (test-end-times (assert nil) :type vector)
   (passed-expected 0)
   (passed-unexpected 0)
   (failed-expected 0)
@@ -1303,18 +1309,10 @@ Ensures a final newline is inserted."
              (insert "\n")))))
   nil)
 
-(defun ert-get-buffer-create (buffer-name default-mode)
-  "Like `get-buffer-create', but uses DEFAULT-MODE for new buffers."
-  ;; `default-major-mode' is obsolete but it's what we want here.
-  ;; Should probably suppress warnings and add a test for this
-  ;; function to detect regressions.
-  (let ((default-major-mode default-mode))
-    (get-buffer-create buffer-name)))
-
 (defun ert-setup-results-buffer (stats listener buffer-name)
   "Set up a test results buffer."
   (unless buffer-name (setq buffer-name "*ert*"))
-  (let ((buffer (ert-get-buffer-create buffer-name 'fundamental-mode)))
+  (let ((buffer (get-buffer-create buffer-name)))
     (with-current-buffer buffer
       (setq buffer-read-only t)
       (let ((inhibit-read-only t))
@@ -1360,8 +1358,10 @@ Ensures a final newline is inserted."
     (setf (ert-stats-current-test stats) test)
     (funcall listener 'test-started stats test)
     (setf (ert-test-most-recent-result test) nil)
+    (setf (aref (ert-stats-test-start-times stats) pos) (current-time))
     (unwind-protect
         (ert-run-test test)
+      (setf (aref (ert-stats-test-end-times stats) pos) (current-time))
       (let* ((result (ert-test-most-recent-result test))
              (expectedp (ert-test-result-expected-p test result)))
         ;; Adjust stats to add new result.
@@ -1393,13 +1393,15 @@ Ensures a final newline is inserted."
                       (assert (not (gethash key map)))
                       (setf (gethash key map) i))
                 map))
-         (stats (make-ert-stats :selector selector
-                                :tests tests
-                                :test-map map
-                                :test-results (make-vector (length tests) nil)
-                                :test-results-expected (make-vector
-                                                        (length tests) nil)
-                                :start-time (current-time))))
+         (stats (make-ert-stats
+                 :selector selector
+                 :tests tests
+                 :test-map map
+                 :test-results (make-vector (length tests) nil)
+                 :test-results-expected (make-vector (length tests) nil)
+                 :test-start-times (make-vector (length tests) nil)
+                 :test-end-times (make-vector (length tests) nil)
+                 :start-time (current-time))))
     (funcall listener 'run-started stats)
     (let ((abortedp t))
       (let ((ert-current-run-stats stats))
@@ -1617,6 +1619,19 @@ that runs the tests)."
       (kill-emacs 2))))
 
 
+;;; Simple view mode for auxiliary information like stack traces or
+;;; messages.  Mainly binds "q" for quit.
+
+(define-derived-mode ert-simple-view-mode fundamental-mode "ERT-View"
+  "Major mode for viewing auxiliary information in ERT.")
+
+(loop for (key binding) in
+      '(("q" quit-window)
+        )
+      do
+      (define-key ert-simple-view-mode-map key binding))
+
+
 ;;; Commands and button actions for the results buffer.
 
 (define-derived-mode ert-results-mode fundamental-mode "ERT-Results"
@@ -1629,9 +1644,12 @@ that runs the tests)."
         ("d" ert-results-rerun-test-at-point-debugging-errors)
         ("b" ert-results-pop-to-backtrace-for-test-at-point)
         ("m" ert-results-pop-to-messages-for-test-at-point)
+        ;; TODO(ohler): Make n and p navigate up and down.
         ("p" ert-results-toggle-printer-limits-for-test-at-point)
         ("D" ert-delete-test)
         ("l" ert-results-pop-to-should-forms-for-test-at-point)
+        ("T" ert-results-pop-to-timings)
+        ("q" quit-window)
         ([tab] forward-button)
         ([backtab] backward-button)
         )
@@ -1659,7 +1677,11 @@ To be used in the ERT results buffer."
     ;; `ewoc-locate' will return an arbitrary node when point is on
     ;; header or footer, or when all nodes are invisible.  So we need
     ;; to validate its return value here.
-    (if (and (>= (point) (ewoc-location node))
+    ;;
+    ;; Update: I'm seeing nil being returned in some cases now,
+    ;; perhaps this has been changed?
+    (if (and node
+             (>= (point) (ewoc-location node))
              (not (ert-ewoc-entry-hidden-p (ewoc-data node))))
         node
       nil)))
@@ -1836,12 +1858,13 @@ To be used in the ERT results buffer."
       (ert-test-passed (error "Test passed, no backtrace available"))
       (ert-test-result-with-condition
        (let ((backtrace (ert-test-result-with-condition-backtrace result))
-             (buffer
-              (ert-get-buffer-create "*ERT Backtrace*" 'fundamental-mode)))
+             (buffer (get-buffer-create "*ERT Backtrace*")))
          (pop-to-buffer buffer)
          (setq buffer-read-only t)
          (let ((inhibit-read-only t))
+           (buffer-disable-undo)
            (erase-buffer)
+           (ert-simple-view-mode)
            ;; Use unibyte because `debugger-setup-buffer' also does so.
            (set-buffer-multibyte nil)
            (setq truncate-lines t)
@@ -1861,12 +1884,13 @@ To be used in the ERT results buffer."
          (entry (ewoc-data node))
          (test (ert-ewoc-entry-test entry))
          (result (ert-ewoc-entry-result entry)))
-    (let ((buffer
-           (ert-get-buffer-create "*ERT Messages*" 'fundamental-mode)))
+    (let ((buffer (get-buffer-create "*ERT Messages*")))
       (pop-to-buffer buffer)
       (setq buffer-read-only t)
       (let ((inhibit-read-only t))
+        (buffer-disable-undo)
         (erase-buffer)
+        (ert-simple-view-mode)
         (insert (ert-test-result-messages result))
         (goto-char (point-min))
         (insert "Messages for test `")
@@ -1882,12 +1906,13 @@ To be used in the ERT results buffer."
          (entry (ewoc-data node))
          (test (ert-ewoc-entry-test entry))
          (result (ert-ewoc-entry-result entry)))
-    (let ((buffer (ert-get-buffer-create "*ERT list of should forms*"
-                                         'fundamental-mode)))
+    (let ((buffer (get-buffer-create "*ERT list of should forms*")))
       (pop-to-buffer buffer)
       (setq buffer-read-only t)
       (let ((inhibit-read-only t))
+        (buffer-disable-undo)
         (erase-buffer)
+        (ert-simple-view-mode)
         (if (null (ert-test-result-should-forms result))
             (insert "\n(No should forms during this test.)\n")
           (loop for form-description in (ert-test-result-should-forms result)
@@ -1918,6 +1943,43 @@ To be used in the ERT results buffer."
     (setf (ert-ewoc-entry-extended-printer-limits-p entry)
           (not (ert-ewoc-entry-extended-printer-limits-p entry)))
     (ewoc-invalidate ewoc node)))
+
+(defun ert-results-pop-to-timings ()
+  "Display test timings for the last run.
+
+To be used in the ERT results buffer."
+  (interactive)
+  (let* ((stats ert-results-stats)
+         (start-times (ert-stats-test-start-times stats))
+         (end-times (ert-stats-test-end-times stats))
+         (buffer (get-buffer-create "*ERT timings*"))
+         (data (loop for test across (ert-stats-tests stats)
+                     for start-time across (ert-stats-test-start-times stats)
+                     for end-time across (ert-stats-test-end-times stats)
+                     collect (list test
+                                   (float-time (subtract-time end-time
+                                                              start-time))))))
+    (setq data (sort data (lambda (a b)
+                            (> (second a) (second b)))))
+    (pop-to-buffer buffer)
+    (setq buffer-read-only t)
+    (let ((inhibit-read-only t))
+      (buffer-disable-undo)
+      (erase-buffer)
+      (ert-simple-view-mode)
+      (if (null data)
+          (insert "(No data)\n")
+        (insert (format "%-3s  %8s %8s\n" "" "time" "cumul"))
+        (loop for (test time) in data
+              for cumul-time = time then (+ cumul-time time)
+              for i from 1 do
+              (let ((begin (point)))
+                (insert (format "%3s: %8.3f %8.3f " i time cumul-time))
+                (ert-insert-test-name-button (ert-test-name test))
+                (insert "\n"))))
+      (goto-char (point-min))
+      (insert "Tests by run time (seconds):\n\n")
+      (forward-line 1))))
 
 (defun ert-activate-font-lock-keywords ()
   (font-lock-add-keywords
@@ -2520,8 +2582,10 @@ This can be used as an inverse of `add-to-list'."
 (ert-deftest ert-test-force-message-log-buffer-truncation ()
   :tags '(:causes-redisplay)
   (labels ((body ()
-             (loop for i below 5 do
+             (loop for i below 3 do
                    (message "%s" i)))
+           ;; Uses the implicit messages buffer truncation implemented
+           ;; in Emacs' C core.
            (c (x)
              (ert-call-with-temporary-messages-buffer
               (lambda ()
@@ -2529,6 +2593,7 @@ This can be used as an inverse of `add-to-list'."
                   (body))
                 (with-current-buffer "*Messages*"
                   (buffer-string)))))
+           ;; Uses our lisp reimplementation.
            (lisp (x)
              (ert-call-with-temporary-messages-buffer
               (lambda ()
@@ -2538,7 +2603,7 @@ This can be used as an inverse of `add-to-list'."
                   (ert-force-message-log-buffer-truncation))
                 (with-current-buffer "*Messages*"
                   (buffer-string))))))
-    (loop for x in '(0 1 2 3 4 5 6 t) do
+    (loop for x in '(0 1 2 3 4 t) do
           (should (equal (c x) (lisp x))))))
 
 (ert-deftest ert-test-list-of-should-forms ()
