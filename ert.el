@@ -951,7 +951,7 @@ element of TYPE.  TEST should be a predicate."
 
 (defun ert-explain-format-atom (x)
   (typecase x
-    (fixnum (format "%s #x%x ?%c" x x x))
+    (fixnum (list x (format "#x%x" x) (format "?%c" x)))
     (t x)))
 
 (defun ert-explain-not-equal (a b)
@@ -2438,6 +2438,7 @@ This can be used as an inverse of `add-to-list'."
 
 ;; Test `ert-run-tests'.
 (ert-deftest ert-test-run-tests ()
+  :tags '(:causes-redisplay)
   (let ((passing-test (make-ert-test :name 'passing-test
                                      :body (lambda () (ert-pass))))
         (failing-test (make-ert-test :name 'failing-test
@@ -2497,6 +2498,13 @@ This can be used as an inverse of `add-to-list'."
   (ert-call-with-temporary-messages-buffer
    (lambda ()
      (with-current-buffer "*Messages*"
+       (should (equal (buffer-string) ""))
+       ;; The sporadic failures involve a spurious newline at the
+       ;; beginning of the buffer, before the first message.  Let's
+       ;; print a message and erase the buffer to see if this
+       ;; eliminates the sporadic failures.
+       (message "foo")
+       (erase-buffer)
        (should (equal (buffer-string) ""))
        (let ((message-log-max 2))
          (let ((message-log-max t))
@@ -2716,6 +2724,18 @@ This can be used as an inverse of `add-to-list'."
     (should (equal (ert-coerce-to-vector c) (vector)))
     (should (equal (ert-coerce-to-vector d) (vector b a)))))
 
+(ert-deftest ert-test-explain-not-equal ()
+  (should (equal (ert-explain-not-equal nil 'foo)
+                 '(different-atoms nil foo)))
+  (should (equal (ert-explain-not-equal '(a a) '(a b))
+                 '(list-elt 1 (different-atoms a b))))
+  (should (equal (ert-explain-not-equal '(1 48) '(1 49))
+                 '(list-elt 1 (different-atoms (48 "#x30" "?0")
+                                               (49 "#x31" "?1")))))
+  (should (equal (ert-explain-not-equal 'nil '(a))
+                 '(different-types nil (a))))
+  (should (equal (ert-explain-not-equal '(a b c) '(a b c d))
+                 '(proper-lists-of-different-length 3 4 (a b c) (a b c d)))))
 
 ;; Run tests and make sure they actually ran.
 (let ((window-configuration (current-window-configuration)))
