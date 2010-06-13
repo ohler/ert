@@ -205,7 +205,7 @@
   (concat "^\\s-*(ert-deftest"
           find-function-space-re
           "%s\\(\\s-\\|$\\)")
-  "The regexp the `find-function' mechanisms use for locating test definitions.")
+  "The regexp the `find-function' mechanisms use for finding test definitions.")
 
 (eval-and-compile
   (defun ert-parse-keys-and-body (keys-and-body)
@@ -271,7 +271,8 @@ and the body."
 (defun ert-read-test-name (prompt &optional default-value history)
   "Read the name of a test and return it as a symbol.
 Prompt with PROMPT.  By default, return DEFAULT-VALUE."
-  (when (symbolp default-value) (setq default-value (symbol-name default-value)))
+  (when (symbolp default-value)
+    (setq default-value (symbol-name default-value)))
   (intern (completing-read prompt obarray #'ert-test-boundp
                            t nil history default-value nil)))
 
@@ -285,7 +286,8 @@ Prompt with PROMPT.  By default, return DEFAULT-VALUE."
   (interactive (list (let ((default (thing-at-point 'symbol)))
                        (when default
                          (set-text-properties 0 (length default) nil default)
-                         (when (or (string= default "nil") (intern-soft default))
+                         (when (or (string= default "nil")
+                                   (intern-soft default))
                            (setq default (intern default)))
                          (unless (ert-test-boundp default)
                            (setq default nil)))
@@ -325,7 +327,8 @@ t -- Selects UNIVERSE.
 :new -- Selects all tests that have not been run yet.
 :failed, :passed, :error -- Select tests according to their most recent result.
 :expected, :unexpected -- Select tests according to their most recent result.
-a string -- Selects all tests that have a name that matches the string, a regexp.
+a string -- Selects all tests that have a name that matches the string,
+            a regexp.
 a test -- Selects that test.
 a symbol -- Selects the test that the symbol names, errors if none.
 \(member TESTS...\) -- Selects TESTS, a list of tests or symbols naming tests.
@@ -381,7 +384,8 @@ contained in UNIVERSE."
                            (apropos-internal selector #'ert-test-boundp)))
        (list (remove-if-not (lambda (test)
                               (and (ert-test-name test)
-                                   (string-match selector (ert-test-name test))))
+                                   (string-match selector
+                                                 (ert-test-name test))))
                             universe))))
     (ert-test (list selector))
     (symbol
@@ -406,7 +410,8 @@ contained in UNIVERSE."
           (case (length operands)
             (0 (ert-select-tests 't universe))
             (t (ert-select-tests `(and ,@(rest operands))
-                                 (ert-select-tests (first operands) universe)))))
+                                 (ert-select-tests (first operands)
+                                                   universe)))))
          (not
           (assert (eql (length operands) 1))
           (set-difference (ert-select-tests 't universe)
@@ -519,7 +524,8 @@ DATA is displayed to the user and should state the reason of the failure."
 
 Records failures and errors and either terminates the test
 silently or calls the interactive debugger, as appropriate."
-  (destructuring-bind (first-debugger-arg &rest more-debugger-args) debugger-args
+  (destructuring-bind (first-debugger-arg &rest more-debugger-args)
+      debugger-args
     (ecase first-debugger-arg
       ((lambda debug t exit nil)
        (apply (ert-test-execution-info-next-debugger info) debugger-args))
@@ -598,7 +604,9 @@ silently or calls the interactive debugger, as appropriate."
 (defvar ert-should-execution-observer nil)
 
 (defun ert-run-test (test)
-  "Run TEST.  Return the result and store it in TEST's `most-recent-result' slot."
+  "Run TEST.
+
+Returns the result and stores it in TEST's `most-recent-result' slot."
   (setf (ert-test-most-recent-result test) nil)
   (block error
     (lexical-let* ((begin-marker (ert-make-marker-in-messages-buffer))
@@ -912,7 +920,7 @@ Returns nil if they are equal."
      (ert-stats-failed-unexpected stats)
      (ert-stats-error-unexpected stats)))
 
-(defun ert-stats-completed (stats) 
+(defun ert-stats-completed (stats)
   "Number of tests in STATS that have run so far."
   (+ (ert-stats-completed-expected stats)
      (ert-stats-completed-unexpected stats)))
@@ -960,7 +968,7 @@ Returns nil if they are equal."
 (defvar ert-current-run-stats nil)
 
 (defun ert-format-time-iso8601 (time)
-  "Format TIME in the particular variant of ISO 8601 used for timestamps in ERT."
+  "Format TIME in the variant of ISO 8601 used for timestamps in ERT."
   (format-time-string "%Y-%m-%d %T%z" time))
 
 (defun ert-insert-test-name-button (test-name)
@@ -1412,7 +1420,8 @@ Returns the stats object."
             (ert-test-result-with-condition
              (message "Test %S backtrace:" (ert-test-name test))
              (with-temp-buffer
-               (ert-print-backtrace (ert-test-result-with-condition-backtrace result))
+               (ert-print-backtrace (ert-test-result-with-condition-backtrace
+                                     result))
                (goto-char (point-min))
                (while (not (eobp))
                  (let ((start (point))
@@ -1594,7 +1603,7 @@ To be used in the ERT results buffer."
         (t (assert nil))))
 
 (defun ert-results-progress-bar-button-action (button)
-  "Find the ewoc node that represents the same test as the character clicked on."
+  "Find the ewoc node that represents the same test as the character clicked."
   (goto-char (ert-button-action-position))
   (ert-results-jump-between-summary-and-result))
 
@@ -2091,7 +2100,8 @@ This is an inverse of `add-to-list'."
            (ert-test-failed ((should (not x)) :form (not t) :value nil)))
           (,(lambda () (let ((x nil)) (should-not (not x))))
            (ert-test-failed ((should-not (not x)) :form (not nil) :value t)))
-          (,(lambda () (let ((x t) (y nil)) (should-not (ert-test-my-list x y))))
+          (,(lambda () (let ((x t) (y nil)) (should-not
+                                             (ert-test-my-list x y))))
            (ert-test-failed
             ((should-not (ert-test-my-list x y))
              :form (list t nil)
@@ -2228,9 +2238,12 @@ This is an inverse of `add-to-list'."
 (ert-deftest ert-parse-keys-and-body ()
   (should (equal (ert-parse-keys-and-body '(foo)) '(nil (foo))))
   (should (equal (ert-parse-keys-and-body '(:bar foo)) '((:bar foo) nil)))
-  (should (equal (ert-parse-keys-and-body '(:bar foo a (b))) '((:bar foo) (a (b)))))
-  (should (equal (ert-parse-keys-and-body '(:bar foo :a (b))) '((:bar foo :a (b)) nil)))
-  (should (equal (ert-parse-keys-and-body '(bar foo :a (b))) '(nil (bar foo :a (b)))))
+  (should (equal (ert-parse-keys-and-body '(:bar foo a (b)))
+                 '((:bar foo) (a (b)))))
+  (should (equal (ert-parse-keys-and-body '(:bar foo :a (b)))
+                 '((:bar foo :a (b)) nil)))
+  (should (equal (ert-parse-keys-and-body '(bar foo :a (b)))
+                 '(nil (bar foo :a (b)))))
   (should-error (ert-parse-keys-and-body '(:bar foo :a))))
 
 
