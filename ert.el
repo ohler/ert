@@ -168,6 +168,65 @@
   "Non-nil means enter debugger when a test fails or terminates with an error.")
 
 
+;;; Copies/reimplementations of cl functions.
+
+(defun ert-cl-do-remf (plist tag)
+  "Copy of `cl-do-remf'."
+  (let ((p (cdr plist)))
+    (while (and (cdr p) (not (eq (car (cdr p)) tag))) (setq p (cdr (cdr p))))
+    (and (cdr p) (progn (setcdr p (cdr (cdr (cdr p)))) t))))
+
+(defun ert-remprop (sym tag)
+  "Copy of `cl-remprop'."
+  (let ((plist (symbol-plist sym)))
+    (if (and plist (eq tag (car plist)))
+	(progn (setplist sym (cdr (cdr plist))) t)
+      (ert-cl-do-remf plist tag))))
+
+(defun ert-remove-if-not (ert-pred ert-list)
+  (loop for ert-x in ert-list
+        if (funcall ert-pred ert-x)
+        collect ert-x))
+
+(defun ert-intersection (a b)
+  (loop for x in a
+        if (memql x b)
+        collect x))
+
+(defun ert-set-difference (a b)
+  (loop for x in a
+        unless (memql x b)
+        collect x))
+
+(defun ert-union (a b)
+  (append a (ert-set-difference b a)))
+
+(eval-and-compile
+  (defvar ert-gensym-counter 0))
+
+(eval-and-compile
+  (defun ert-gensym (&optional prefix)
+    "Only allows string PREFIX, not compatible with CL."
+    (unless prefix (setq prefix "G"))
+    (make-symbol (format "%s%s"
+                         prefix
+                         (prog1 ert-gensym-counter
+                           (incf ert-gensym-counter))))))
+
+(defun ert-coerce-to-vector (x)
+  (if (vectorp x)
+      x
+    (vconcat x)))
+
+(defun* ert-remove* (x list &key key test)
+  "Does not support all the keywords of remove*."
+  (unless key (setq key #'identity))
+  (unless test (setq test #'eql))
+  (loop for y in list
+        unless (funcall test x (funcall key y))
+        collect y))
+
+
 ;;; Defining and locating tests.
 
 ;; The data structure that represents a test case.
@@ -194,7 +253,7 @@
 
 (defun ert-make-test-unbound (symbol)
   "Make SYMBOL name no test.  Return SYMBOL."
-  (remprop symbol 'ert-test)
+  (ert-remprop symbol 'ert-test)
   symbol)
 
 (defun ert-test-result-expected-p (test result)
@@ -382,11 +441,11 @@ contained in UNIVERSE."
      (etypecase universe
        ((member t) (mapcar #'ert-get-test
                            (apropos-internal selector #'ert-test-boundp)))
-       (list (remove-if-not (lambda (test)
-                              (and (ert-test-name test)
-                                   (string-match selector
-                                                 (ert-test-name test))))
-                            universe))))
+       (list (ert-remove-if-not (lambda (test)
+                                  (and (ert-test-name test)
+                                       (string-match selector
+                                                     (ert-test-name test))))
+                                universe))))
     (ert-test (list selector))
     (symbol
      (assert (ert-test-boundp selector))
@@ -414,16 +473,18 @@ contained in UNIVERSE."
                                                    universe)))))
          (not
           (assert (eql (length operands) 1))
-          (set-difference (ert-select-tests 't universe)
-                          (ert-select-tests (first operands) universe)))
+          (ert-set-difference (ert-select-tests 't universe)
+                              (ert-select-tests (first operands) universe)))
          (or
           (case (length operands)
             (0 (ert-select-tests 'nil universe))
-            (t (union (ert-select-tests (first operands) universe)
-                      (ert-select-tests `(or ,@(rest operands)) universe)))))
+            (t (ert-union (ert-select-tests (first operands) universe)
+                          (ert-select-tests `(or ,@(rest operands))
+                                            universe)))))
          (satisfies
           (assert (eql (length operands) 1))
-          (remove-if-not (first operands) (ert-select-tests 't universe))))))))
+          (ert-remove-if-not (first operands)
+                             (ert-select-tests 't universe))))))))
 
 (defun ert-insert-human-readable-selector (selector)
   "Insert a human-readable presentation of SELECTOR into the current buffer."
@@ -655,7 +716,7 @@ Returns the result and stores it in TEST's `most-recent-result' slot."
        ((atom form)
         (funcall inner-expander form `(list ',whole :form ',form :value ,form)))
        ((ert-special-operator-p (car form))
-        (let ((value (gensym "value-")))
+        (let ((value (ert-gensym "value-")))
           `(let ((,value (make-symbol "ert-form-evaluation-aborted")))
              ,(funcall inner-expander
                        `(setq ,value ,form)
@@ -668,10 +729,10 @@ Returns the result and stores it in TEST's `most-recent-result' slot."
                       (and (consp fn-name)
                            (eql (car fn-name) 'lambda)
                            (listp (cdr fn-name)))))
-          (let ((fn (gensym "fn-"))
-                (args (gensym "args-"))
-                (value (gensym "value-"))
-                (default-value (gensym "ert-form-evaluation-aborted-")))
+          (let ((fn (ert-gensym "fn-"))
+                (args (ert-gensym "args-"))
+                (value (ert-gensym "value-"))
+                (default-value (ert-gensym "ert-form-evaluation-aborted-")))
             `(let ((,fn (function ,fn-name))
                    (,args (list ,@arg-forms)))
                (let ((,value ',default-value))
@@ -708,7 +769,7 @@ FORM-DESCRIPTION-FORM before it has called INNER-FORM."
       (ert-expand-should-1
        whole form env
        (lambda (inner-form form-description-form)
-         (let ((form-description (gensym "form-description-")))
+         (let ((form-description (ert-gensym "form-description-")))
            `(let (,form-description)
               ,(funcall inner-expander
                         `(unwind-protect
@@ -746,7 +807,7 @@ TEST, and aborts the current test as failed if it doesn't."
                               (list type)
                               (symbol (list type)))))
     (assert signalled-conditions)
-    (unless (intersection signalled-conditions handled-conditions)
+    (unless (ert-intersection signalled-conditions handled-conditions)
       (ert-fail (append
                  (funcall form-description-fn)
                  (list
@@ -788,8 +849,8 @@ element of TYPE.  TEST should be a predicate."
    `(should-error ,form ,@keys)
    form env
    (lambda (inner-form form-description-form)
-     (let ((errorp (gensym "errorp"))
-           (form-description-fn (gensym "form-description-fn-")))
+     (let ((errorp (ert-gensym "errorp"))
+           (form-description-fn (ert-gensym "form-description-fn-")))
        `(let ((,errorp nil)
               (,form-description-fn (lambda () ,form-description-form)))
           (condition-case -condition-
@@ -1166,11 +1227,18 @@ Ensures a final newline is inserted."
              (insert "\n")))))
   nil)
 
+(defun ert-get-buffer-create (buffer-name default-mode)
+  "Like `get-buffer-create', but uses DEFAULT-MODE for new buffers."
+  ;; `default-major-mode' is obsolete but it's what we want here.
+  ;; Should probably suppress warnings and add a test for this
+  ;; function to detect regressions.
+  (let ((default-major-mode default-mode))
+    (get-buffer-create buffer-name)))
+
 (defun ert-setup-results-buffer (stats listener buffer-name)
   "Set up a test results buffer."
   (unless buffer-name (setq buffer-name "*ert*"))
-  (let ((buffer (let ((default-major-mode 'fundamental-mode))
-                  (get-buffer-create buffer-name))))
+  (let ((buffer (ert-get-buffer-create buffer-name 'fundamental-mode)))
     (with-current-buffer buffer
       (setq buffer-read-only t)
       (let ((inhibit-read-only t))
@@ -1241,7 +1309,7 @@ Ensures a final newline is inserted."
 
 (defun ert-run-tests (selector listener)
   "Run the tests specified by SELECTOR, sending progress updates to LISTENER."
-  (let* ((tests (coerce (ert-select-tests selector t) 'vector))
+  (let* ((tests (ert-coerce-to-vector (ert-select-tests selector t)))
          (map (let ((map (make-hash-table :size (length tests))))
                 (loop for i from 0
                       for test across tests
@@ -1379,7 +1447,7 @@ run; this makes the command line \"emacs -batch -l my-tests.el -f
 ert-run-tests-batch-and-exit\" useful.
 
 Returns the stats object."
-  (when (null selector) (setq selector 't))
+  (unless selector (setq selector 't))
   (ert-run-tests
    selector
    (lambda (event-type &rest event-args)
@@ -1693,8 +1761,7 @@ To be used in the ERT results buffer."
       (ert-test-result-with-condition
        (let ((backtrace (ert-test-result-with-condition-backtrace result))
              (buffer
-              (let ((default-major-mode 'fundamental-mode))
-                (get-buffer-create "*ERT Backtrace*"))))
+              (ert-get-buffer-create "*ERT Backtrace*" 'fundamental-mode)))
          (pop-to-buffer buffer)
          (setq buffer-read-only t)
          (let ((inhibit-read-only t))
@@ -1719,8 +1786,7 @@ To be used in the ERT results buffer."
          (test (ert-ewoc-entry-test entry))
          (result (ert-ewoc-entry-result entry)))
     (let ((buffer
-           (let ((default-major-mode 'fundamental-mode))
-             (get-buffer-create "*ERT Messages*"))))
+           (ert-get-buffer-create "*ERT Messages*" 'fundamental-mode)))
       (pop-to-buffer buffer)
       (setq buffer-read-only t)
       (let ((inhibit-read-only t))
@@ -1740,9 +1806,8 @@ To be used in the ERT results buffer."
          (entry (ewoc-data node))
          (test (ert-ewoc-entry-test entry))
          (result (ert-ewoc-entry-result entry)))
-    (let ((buffer
-           (let ((default-major-mode 'fundamental-mode))
-             (get-buffer-create "*ERT list of should forms*"))))
+    (let ((buffer (ert-get-buffer-create "*ERT list of should forms*"
+                                         'fundamental-mode)))
       (pop-to-buffer buffer)
       (setq buffer-read-only t)
       (let ((inhibit-read-only t))
@@ -1788,14 +1853,14 @@ To be used in the ERT results buffer."
 (defun* ert-remove-from-list (list-var element &key key test)
   "Remove ELEMENT from the value of LIST-VAR if present.
 
-This is an inverse of `add-to-list'."
+This can be used as an inverse of `add-to-list'."
   (unless key (setq key #'identity))
   (unless test (setq test #'equal))
   (setf (symbol-value list-var)
-        (remove* element
-                 (symbol-value list-var)
-                 :key key
-                 :test test)))
+        (ert-remove* element
+                     (symbol-value list-var)
+                     :key key
+                     :test test)))
 
 
 ;;; Actions on load/unload.
@@ -2290,7 +2355,7 @@ This is an inverse of `add-to-list'."
   (should (ert-special-operator-p 'if))
   (should-not (ert-special-operator-p 'car))
   (should-not (ert-special-operator-p 'ert-special-operator-p))
-  (let ((b (gensym)))
+  (let ((b (ert-gensym)))
     (should-not (ert-special-operator-p b))
     (fset b 'if)
     (should (ert-special-operator-p b))))
@@ -2384,6 +2449,147 @@ This is an inverse of `add-to-list'."
                        ((should (equal obj '(b))) :form (equal (b) (b)) :value t
                         :explanation nil)
                        ))))))
+
+(ert-deftest ert-test-remprop ()
+  (let ((x (ert-gensym)))
+    (should (equal (symbol-plist x) '()))
+    ;; Remove nonexistent property on empty plist.
+    (ert-remprop x 'b)
+    (should (equal (symbol-plist x) '()))
+    (put x 'a 1)
+    (should (equal (symbol-plist x) '(a 1)))
+    ;; Remove nonexistent property on nonempty plist.
+    (ert-remprop x 'b)
+    (should (equal (symbol-plist x) '(a 1)))
+    (put x 'b 2)
+    (put x 'c 3)
+    (put x 'd 4)
+    (should (equal (symbol-plist x) '(a 1 b 2 c 3 d 4)))
+    ;; Remove property that is neither first nor last.
+    (ert-remprop x 'c)
+    (should (equal (symbol-plist x) '(a 1 b 2 d 4)))
+    ;; Remove last property from a plist of length >1.
+    (ert-remprop x 'd)
+    (should (equal (symbol-plist x) '(a 1 b 2)))
+    ;; Remove first property from a plist of length >1.
+    (ert-remprop x 'a)
+    (should (equal (symbol-plist x) '(b 2)))
+    ;; Remove property when there is only one.
+    (ert-remprop x 'b)
+    (should (equal (symbol-plist x) '()))))
+
+(ert-deftest ert-test-remove-if-not ()
+  (let ((list (list 'a 'b 'c 'd))
+        (i 0))
+    (let ((result (ert-remove-if-not (lambda (x)
+                                       (should (eql x (nth i list)))
+                                       (incf i)
+                                       (member i '(2 3)))
+                                     list)))
+      (should (equal i 4))
+      (should (equal result '(b c)))
+      (should (equal list '(a b c d)))))
+  (should (equal '()
+                 (ert-remove-if-not (lambda (x) (should nil)) '()))))
+
+(ert-deftest ert-test-remove* ()
+  (let ((list (list 'a 'b 'c 'd))
+        (key-index 0)
+        (test-index 0))
+    (let ((result
+           (ert-remove* 'foo list
+                        :key (lambda (x)
+                               (should (eql x (nth key-index list)))
+                               (prog1
+                                   (list key-index x)
+                                 (incf key-index)))
+                        :test
+                        (lambda (a b)
+                          (should (eql a 'foo))
+                          (should (equal b (list test-index
+                                                 (nth test-index list))))
+                          (incf test-index)
+                          (member test-index '(2 3))))))
+      (should (equal key-index 4))
+      (should (equal test-index 4))
+      (should (equal result '(a d)))
+      (should (equal list '(a b c d)))))
+  (let ((x (cons nil nil))
+        (y (cons nil nil)))
+    (should (equal (ert-remove* x (list x y))
+                   ;; or (list x), since we use `equal' -- the
+                   ;; important thing is that only one element got
+                   ;; removed, this proves that the default test is
+                   ;; `eql', not `equal'
+                   (list y)))))
+
+
+(defun ert-data-for-set-tests ())
+
+(ert-deftest ert-test-set-functions ()
+  (let ((c1 (cons nil nil))
+        (c2 (cons nil nil))
+        (sym (make-symbol "a")))
+    (let ((e '())
+          (a (list 'a 'b sym nil "" "x" c1 c2))
+          (b (list c1 'y 'b sym 'x)))
+      (should (equal (ert-set-difference e e) e))
+      (should (equal (ert-set-difference a e) a))
+      (should (equal (ert-set-difference e a) e))
+      (should (equal (ert-set-difference a a) e))
+      (should (equal (ert-set-difference b e) b))
+      (should (equal (ert-set-difference e b) e))
+      (should (equal (ert-set-difference b b) e))
+      (should (equal (ert-set-difference a b) (list 'a nil "" "x" c2)))
+      (should (equal (ert-set-difference b a) (list 'y 'x)))
+
+      (should (equal (ert-union e e) e))
+      (should (equal (ert-union a e) a))
+      (should (equal (ert-union e a) a))
+      (should (equal (ert-union a a) a))
+      (should (equal (ert-union b e) b))
+      (should (equal (ert-union e b) b))
+      (should (equal (ert-union b b) b))
+      (should (equal (ert-union a b) (list 'a 'b sym nil "" "x" c1 c2 'y 'x)))
+      (should (equal (ert-union b a) (list c1 'y 'b sym 'x 'a nil "" "x" c2)))
+
+      (should (equal (ert-intersection e e) e))
+      (should (equal (ert-intersection a e) e))
+      (should (equal (ert-intersection e a) e))
+      (should (equal (ert-intersection a a) a))
+      (should (equal (ert-intersection b e) e))
+      (should (equal (ert-intersection e b) e))
+      (should (equal (ert-intersection b b) b))
+      (should (equal (ert-intersection a b) (list 'b sym c1)))
+      (should (equal (ert-intersection b a) (list c1 'b sym))))))
+
+(ert-deftest ert-test-gensym ()
+  ;; Since the expansion of `should' calls `ert-gensym' and thus has a
+  ;; side-effect on `ert-gensym-counter', we have to make sure all
+  ;; macros in our test body are expanded before we rebind
+  ;; `ert-gensym-counter' and run the body.  Otherwise, the test would
+  ;; fail if run interpreted.
+  (let ((body (byte-compile
+               (lambda ()
+                 (should (equal (symbol-name (ert-gensym)) "G0"))
+                 (should (equal (symbol-name (ert-gensym)) "G1"))
+                 (should (equal (symbol-name (ert-gensym)) "G2"))
+                 (should (equal (symbol-name (ert-gensym "foo")) "foo3"))
+                 (should (equal (symbol-name (ert-gensym "bar")) "bar4"))
+                 (should (equal ert-gensym-counter 5))))))
+    (let ((ert-gensym-counter 0))
+      (funcall body))))
+
+(ert-deftest ert-test-coerce-to-vector ()
+  (let* ((a (vector))
+         (b (vector 1 a 3))
+         (c (list))
+         (d (list b a)))
+    (should (eql (ert-coerce-to-vector a) a))
+    (should (eql (ert-coerce-to-vector b) b))
+    (should (equal (ert-coerce-to-vector c) (vector)))
+    (should (equal (ert-coerce-to-vector d) (vector b a)))))
+
 
 ;; Run tests and make sure they actually ran.
 (let ((window-configuration (current-window-configuration)))
