@@ -1,6 +1,6 @@
 ;;; ert.el --- Emacs Lisp Regression Testing
 
-;; Copyright (C) 2007, 2008 Christian M. Ohler
+;; Copyright (C) 2007, 2008, 2010 Christian M. Ohler
 
 ;; Author: Christian M. Ohler
 ;; Version: 0.2
@@ -2570,13 +2570,13 @@ This can be used as an inverse of `add-to-list'."
   ;; `ert-gensym-counter' and run the body.  Otherwise, the test would
   ;; fail if run interpreted.
   (let ((body (byte-compile
-               (lambda ()
-                 (should (equal (symbol-name (ert-gensym)) "G0"))
-                 (should (equal (symbol-name (ert-gensym)) "G1"))
-                 (should (equal (symbol-name (ert-gensym)) "G2"))
-                 (should (equal (symbol-name (ert-gensym "foo")) "foo3"))
-                 (should (equal (symbol-name (ert-gensym "bar")) "bar4"))
-                 (should (equal ert-gensym-counter 5))))))
+               '(lambda ()
+                  (should (equal (symbol-name (ert-gensym)) "G0"))
+                  (should (equal (symbol-name (ert-gensym)) "G1"))
+                  (should (equal (symbol-name (ert-gensym)) "G2"))
+                  (should (equal (symbol-name (ert-gensym "foo")) "foo3"))
+                  (should (equal (symbol-name (ert-gensym "bar")) "bar4"))
+                  (should (equal ert-gensym-counter 5))))))
     (let ((ert-gensym-counter 0))
       (funcall body))))
 
