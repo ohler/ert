@@ -2263,20 +2263,24 @@ This is an inverse of `add-to-list'."
 ;; justifies the existence of
 ;; `ert-force-message-log-buffer-truncation'): The only way that came
 ;; to my mind was (message ""), which doesn't have the desired effect.
+;;
+;; I've seen this test fail sporadically, but haven't found out why
+;; yet.
 (ert-deftest ert-test-builtin-message-log-flushing ()
   (ert-call-with-temporary-messages-buffer
    (lambda ()
      (with-current-buffer "*Messages*"
+       (should (equal (buffer-string) ""))
        (let ((message-log-max 2))
          (let ((message-log-max t))
            (loop for i below 4 do
                  (message "%s" i))
-           (should (eql (count-lines (point-min) (point-max)) 4)))
-         (should (eql (count-lines (point-min) (point-max)) 4))
+           (should (equal (buffer-string) "0\n1\n2\n3\n")))
+         (should (equal (buffer-string) "0\n1\n2\n3\n"))
          (message "")
-         (should (eql (count-lines (point-min) (point-max)) 4))
+         (should (equal (buffer-string) "0\n1\n2\n3\n"))
          (message "Test message")
-         (should (eql (count-lines (point-min) (point-max)) 2)))))))
+         (should (equal (buffer-string) "3\nTest message\n")))))))
 
 (ert-deftest ert-test-force-message-log-buffer-truncation ()
   (labels ((body ()
