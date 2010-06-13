@@ -1187,12 +1187,15 @@ Also sets `ert-results-progress-bar-button-begin'."
        (let ((progress-bar-string (with-current-buffer results-buffer
                                     ert-results-progress-bar-string)))
          (let ((progress-bar-button-begin
-                (insert-text-button (substring progress-bar-string 0 run-count)
+                (insert-text-button progress-bar-string
                                     :type 'ert-results-progress-bar-button)))
+           ;; The header gets copied verbatim to the results buffer,
+           ;; and all positions remain the same, so
+           ;; `progress-bar-button-begin' will be the right position
+           ;; even in the results buffer.
            (with-current-buffer results-buffer
              (set (make-local-variable 'ert-results-progress-bar-button-begin)
-                  progress-bar-button-begin)))
-         (insert (substring progress-bar-string run-count)))
+                  progress-bar-button-begin))))
        (insert "\n\n")
        (buffer-string))
      ;; footer
@@ -1200,6 +1203,7 @@ Also sets `ert-results-progress-bar-button-begin'."
      ;; We actually want an empty footer, but that would trigger a bug
      ;; in ewoc, sometimes clearing the entire buffer.
      "\n")))
+
 
 (defvar ert-test-run-redisplay-interval-secs .1
   "How many seconds ERT should wait between redisplays while running tests.
@@ -1319,16 +1323,19 @@ Ensures a final newline is inserted."
         (buffer-disable-undo)
         (erase-buffer)
         (ert-results-mode)
-        (set (make-local-variable 'ert-results-ewoc)
-             (ewoc-create 'ert-print-test-for-ewoc nil nil t))
-        (set (make-local-variable 'ert-results-stats) stats)
-        (set (make-local-variable 'ert-results-progress-bar-string)
-             (make-string (ert-stats-total stats)
-                          (ert-char-for-test-result nil t)))
-        (set (make-local-variable 'ert-results-listener) listener)
-        (ert-results-update-ewoc-hf ert-results-ewoc ert-results-stats)
-        (goto-char (1- (point-max)))
-        buffer))))
+        (let ((ewoc (ewoc-create 'ert-print-test-for-ewoc nil nil t)))
+          (set (make-local-variable 'ert-results-ewoc) ewoc)
+          (set (make-local-variable 'ert-results-stats) stats)
+          (set (make-local-variable 'ert-results-progress-bar-string)
+               (make-string (ert-stats-total stats)
+                            (ert-char-for-test-result nil t)))
+          (set (make-local-variable 'ert-results-listener) listener)
+          (loop for test across (ert-stats-tests stats) do
+                (ewoc-enter-last ewoc
+                                 (make-ert-ewoc-entry :test test :hidden-p t)))
+          (ert-results-update-ewoc-hf ert-results-ewoc ert-results-stats)
+          (goto-char (1- (point-max)))
+          buffer)))))
 
 (defun ert-run-or-rerun-test (stats test listener)
   "Run the single test TEST and record the result using STATS and LISTENER."
@@ -1479,14 +1486,7 @@ SELECTOR works as described in `ert-select-tests'."
                    (let* ((ewoc ert-results-ewoc)
                           (pos (ert-stats-test-index stats test))
                           (node (ewoc-nth ewoc pos)))
-                     (unless node
-                       ;; FIXME: How expensive is this assertion?
-                       (assert (or (zerop pos) (ewoc-nth ewoc (1- pos)))
-                               t)
-                       (setq node (ewoc-enter-last
-                                   ewoc
-                                   (make-ert-ewoc-entry :test test
-                                                        :hidden-p t))))
+                     (assert node)
                      (setf (ert-ewoc-entry-test (ewoc-data node)) test)
                      (setf (ert-ewoc-entry-result (ewoc-data node)) nil)
                      (aset ert-results-progress-bar-string pos
