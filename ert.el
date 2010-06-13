@@ -1275,7 +1275,9 @@ Ensures a final newline is inserted."
 ;;;###autoload
 (defun ert-run-tests-interactively (selector
                                     &optional output-buffer-name message-fn)
-  "Run the tests specified by SELECTOR and display the results in a buffer."
+  "Run the tests specified by SELECTOR and display the results in a buffer.
+
+SELECTOR works as described in `ert-select-tests'."
   (interactive
    (list (let ((default (if ert-selector-history
                             (first ert-selector-history)
@@ -1360,10 +1362,16 @@ Ensures a final newline is inserted."
 (defvar ert-batch-backtrace-right-margin 70
   "*The maximum line length for printing backtraces in `ert-run-tests-batch'.")
 
-(defun ert-run-tests-batch (selector)
+(defun ert-run-tests-batch (&optional selector)
   "Run the tests specified by SELECTOR, printing results to the terminal.
 
+SELECTOR works as described in `ert-select-tests', except if
+SELECTOR is nil, in which case all tests rather than none will be
+run; this makes the command line \"emacs -batch -l my-tests.el -f
+ert-run-tests-batch-and-exit\" useful.
+
 Returns the stats object."
+  (when (null selector) (setq selector 't))
   (ert-run-tests
    selector
    (lambda (event-type &rest event-args)
@@ -1438,6 +1446,22 @@ Returns the stats object."
                                                   test result))
                      (1+ (ert-stats-test-index stats test))
                      (ert-test-name test)))))))))
+
+(defun ert-run-tests-batch-and-exit (&optional selector)
+  "Like `ert-run-tests-batch', but exits Emacs when done.
+
+The exit status will be 0 if all test results were as expected, 1
+on unexpected results, or 2 if the framework detected an error
+outside of the tests (e.g. invalid SELECTOR or bug in the code
+that runs the tests)."
+  (unwind-protect
+      (let ((stats (ert-run-tests-batch selector)))
+        (kill-emacs (if (zerop (ert-stats-completed-unexpected stats)) 0 1)))
+    (unwind-protect
+        (progn
+          (message "Error running tests")
+          (backtrace))
+      (kill-emacs 2))))
 
 
 ;;; Commands and button actions for the results buffer.
