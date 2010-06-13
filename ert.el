@@ -1017,7 +1017,10 @@ Returns nil if they are equal."
   (start-time (assert nil))
   (end-time nil)
   (aborted-p nil)
-  (current-test nil))
+  (current-test nil)
+  ;; The time at or after which the next redisplay should occur, as a
+  ;; float.
+  (next-redisplay 0.0))
 
 (defun ert-stats-completed-expected (stats)
   (+ (ert-stats-passed-expected stats)
@@ -1177,11 +1180,21 @@ Also sets `ert-results-progress-bar-button-begin'."
      ;; in ewoc, sometimes clearing the entire buffer.
      "\n")))
 
+(defvar ert-test-run-redisplay-interval-secs .1
+  "How many seconds ERT should wait between redisplays while running tests.
+
+While running tests, ERT shows the current progress, and this variable
+determines how frequently the progress display is updated.")
+
 (defun ert-results-update-stats-display (ewoc stats)
   "Update EWOC and the mode line to show data from STATS."
+  ;; TODO(ohler): investigate using `make-progress-reporter'.
   (ert-results-update-ewoc-hf ewoc stats)
-  (force-mode-line-update)
-  (redisplay t))
+  (when (>= (float-time) (ert-stats-next-redisplay stats))
+    (force-mode-line-update)
+    (redisplay t)
+    (setf (ert-stats-next-redisplay stats)
+          (+ (float-time) ert-test-run-redisplay-interval-secs))))
 
 (defun ert-char-for-test-result (result expectedp)
   "Return a character that represents the test result RESULT."
