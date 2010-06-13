@@ -159,7 +159,8 @@
 
 ;;; Code:
 
-(require 'cl)
+(eval-when-compile
+  (require 'cl))
 (require 'ewoc)
 (require 'find-func)
 (require 'debug)
@@ -235,7 +236,7 @@
   (documentation nil)
   (body (assert nil))
   (most-recent-result nil)
-  (expected-result-type 'ert-test-passed))
+  (expected-result-type ':passed))
 
 (defun ert-test-boundp (symbol)
   "Return non-nil if SYMBOL names a test."
@@ -256,9 +257,52 @@
   (ert-remprop symbol 'ert-test)
   symbol)
 
+(defun ert-test-result-type-p (result result-type)
+  "Return non-nil if RESULT matches type RESULT-TYPE.
+
+Valid result types:
+
+nil -- Never matches.
+t -- Always matches.
+:failed, :passed, :error -- Matches corresponding results.
+\(and TYPES...\) -- Matches if all TYPES match.
+\(or TYPES...\) -- Matches if some TYPES match.
+\(not TYPE\) -- Matches if TYPE does not match.
+\(satisfies PREDICATE\) -- Matches if PREDICATE returns true when called with
+                           RESULT."
+  ;; It would be easy to add `member' and `eql' types etc., but I
+  ;; haven't bothered yet.
+  (etypecase result-type
+    ((member nil) nil)
+    ((member t) t)
+    ((member :failed) (ert-test-failed-p result))
+    ((member :passed) (ert-test-passed-p result))
+    ((member :error) (ert-test-error-p result))
+    (cons
+     (destructuring-bind (operator &rest operands) result-type
+       (ecase operator
+         (and
+          (case (length operands)
+            (0 t)
+            (t
+             (and (ert-test-result-type-p result (first operands))
+                  (ert-test-result-type-p result `(and ,@(rest operands)))))))
+         (or
+          (case (length operands)
+            (0 nil)
+            (t
+             (or (ert-test-result-type-p result (first operands))
+                 (ert-test-result-type-p result `(or ,@(rest operands)))))))
+         (not
+          (assert (eql (length operands) 1))
+          (not (ert-test-result-type-p result (first operands))))
+         (satisfies
+          (assert (eql (length operands) 1))
+          (funcall (first operands) result)))))))
+
 (defun ert-test-result-expected-p (test result)
   "Return non-nil if RESULT matches the expected result type for TEST."
-  (typep result (ert-test-expected-result-type test)))
+  (ert-test-result-type-p result (ert-test-expected-result-type test)))
 
 (defvar ert-find-test-regexp
   (concat "^\\s-*(ert-deftest"
@@ -298,7 +342,9 @@ and the body."
 (defmacro* ert-deftest (name () &body keys-and-body)
   "Define NAME (a symbol) as a test.
 
-\(fn NAME () [:documentation DOCSTRING] [:expected-result TYPE] BODY...)"
+See `ert-test-result-type-p' for a description of valid values for RESULT-TYPE.
+
+\(fn NAME () [:documentation DOCSTRING] [:expected-result RESULT-TYPE] BODY...)"
   (declare (debug (&define :name test name sexp
                            [&optional [":documentation" stringp]]
                            [&optional [":expected-result" sexp]]
@@ -411,23 +457,25 @@ contained in UNIVERSE."
                   ((member t) (ert-select-tests "" universe))))
     ((member :new) (ert-select-tests
                     `(satisfies ,(lambda (test)
-                                   (typep (ert-test-most-recent-result test)
-                                          'null)))
+                                   (null (ert-test-most-recent-result test))))
                     universe))
     ((member :failed) (ert-select-tests
                        `(satisfies ,(lambda (test)
-                                      (typep (ert-test-most-recent-result test)
-                                             'ert-test-failed)))
+                                      (ert-test-result-type-p
+                                       (ert-test-most-recent-result test)
+                                       ':failed)))
                        universe))
     ((member :passed) (ert-select-tests
                        `(satisfies ,(lambda (test)
-                                      (typep (ert-test-most-recent-result test)
-                                             'ert-test-passed)))
+                                      (ert-test-result-type-p
+                                       (ert-test-most-recent-result test)
+                                       ':passed)))
                        universe))
     ((member :error) (ert-select-tests
                       `(satisfies ,(lambda (test)
-                                     (typep (ert-test-most-recent-result test)
-                                            'ert-test-error)))
+                                     (ert-test-result-type-p
+                                      (ert-test-most-recent-result test)
+                                      ':error)))
                       universe))
     ((member :expected) (ert-select-tests
                          `(satisfies
@@ -1287,7 +1335,7 @@ Ensures a final newline is inserted."
     (unwind-protect
         (ert-run-test test)
       (let* ((result (ert-test-most-recent-result test))
-             (expectedp (typep result (ert-test-expected-result-type test))))
+             (expectedp (ert-test-result-expected-p test result)))
         ;; Adjust stats to add new result.
         (if expectedp
             (etypecase result
@@ -2224,6 +2272,43 @@ This can be used as an inverse of `add-to-list'."
                           (buffer-string))
                         "c\nd\n"))))
       (should (equal (ert-test-result-messages result) "a\nb\nc\nd\n")))))
+
+;; Test `ert-test-result-expected-p' and (implicitly) `ert-test-result-type-p'.
+(ert-deftest ert-test-test-result-expected-p ()
+  ;; passing test
+  (let ((test (make-ert-test :body (lambda ()))))
+    (should (ert-test-result-expected-p test (ert-run-test test))))
+  ;; unexpected failure
+  (let ((test (make-ert-test :body (lambda () (ert-fail "failed")))))
+    (should-not (ert-test-result-expected-p test (ert-run-test test))))
+  ;; expected failure
+  (let ((test (make-ert-test :body (lambda () (ert-fail "failed"))
+                             :expected-result-type ':failed)))
+    (should (ert-test-result-expected-p test (ert-run-test test))))
+  ;; `not' expected type
+  (let ((test (make-ert-test :body (lambda ())
+                             :expected-result-type '(not :failed))))
+    (should (ert-test-result-expected-p test (ert-run-test test))))
+  (let ((test (make-ert-test :body (lambda ())
+                             :expected-result-type '(not :passed))))
+    (should-not (ert-test-result-expected-p test (ert-run-test test))))
+  ;; `and' expected type
+  (let ((test (make-ert-test :body (lambda ())
+                             :expected-result-type '(and :passed :failed))))
+    (should-not (ert-test-result-expected-p test (ert-run-test test))))
+  (let ((test (make-ert-test :body (lambda ())
+                             :expected-result-type '(and :passed
+                                                         (not :failed)))))
+    (should (ert-test-result-expected-p test (ert-run-test test))))
+  ;; `or' expected type
+  (let ((test (make-ert-test :body (lambda ())
+                             :expected-result-type '(or (and :passed :failed)
+                                                        :passed))))
+    (should (ert-test-result-expected-p test (ert-run-test test))))
+  (let ((test (make-ert-test :body (lambda ())
+                             :expected-result-type '(or (and :passed :failed)
+                                                   nil (not t)))))
+    (should-not (ert-test-result-expected-p test (ert-run-test test)))))
 
 ;; Test `ert-select-tests'.
 (ert-deftest ert-test-select-regexp ()
