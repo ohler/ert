@@ -236,7 +236,8 @@
   (documentation nil)
   (body (assert nil))
   (most-recent-result nil)
-  (expected-result-type ':passed))
+  (expected-result-type ':passed)
+  (tags '()))
 
 (defun ert-test-boundp (symbol)
   "Return non-nil if SYMBOL names a test."
@@ -344,13 +345,16 @@ and the body."
 
 See `ert-test-result-type-p' for a description of valid values for RESULT-TYPE.
 
-\(fn NAME () [:documentation DOCSTRING] [:expected-result RESULT-TYPE] BODY...)"
+\(fn NAME () [:documentation DOCSTRING] [:expected-result RESULT-TYPE] \
+\[:tags '(TAG...)] BODY...)"
   (declare (debug (&define :name test name sexp
                            [&optional [":documentation" stringp]]
                            [&optional [":expected-result" sexp]]
+                           [&optional [":tags" sexp]]
                            def-body)))
   (destructuring-bind ((&key (expected-result nil expected-result-supplied-p)
-                             (documentation nil documentation-supplied-p))
+                             (documentation nil documentation-supplied-p)
+                             (tags nil tags-supplied-p))
                        body)
       (ert-parse-keys-and-body keys-and-body)
     `(progn
@@ -361,7 +365,9 @@ See `ert-test-result-type-p' for a description of valid values for RESULT-TYPE.
                       ,@(when expected-result-supplied-p
                           `(:expected-result-type ,expected-result))
                       ,@(when documentation-supplied-p
-                          `(:documentation ,documentation))))
+                          `(:documentation ,documentation))
+                      ,@(when tags-supplied-p
+                          `(:tags ,tags))))
        ;; This hack allows `symbol-file' to associate `ert-deftest'
        ;; forms with files, and therefore enables `find-function' to
        ;; work with tests.  However, it leads to warnings in
@@ -441,6 +447,7 @@ a symbol -- Selects the test that the symbol names, errors if none.
 \(and SELECTORS...\) -- Selects the tests that match all SELECTORS.
 \(or SELECTORS...\) -- Selects the tests that match any SELECTOR.
 \(not SELECTOR\) -- Selects all tests that do not match SELECTOR.
+\(tag TAG) -- Selects all tests that have TAG on their tags list.
 \(satisfies PREDICATE\) -- Selects all tests that satisfy PREDICATE.
 
 Only selectors that require a superset of tests, such
@@ -521,14 +528,22 @@ contained in UNIVERSE."
                                                    universe)))))
          (not
           (assert (eql (length operands) 1))
-          (ert-set-difference (ert-select-tests 't universe)
-                              (ert-select-tests (first operands) universe)))
+          (let ((all-tests (ert-select-tests 't universe)))
+            (ert-set-difference all-tests
+                                (ert-select-tests (first operands) all-tests))))
          (or
           (case (length operands)
             (0 (ert-select-tests 'nil universe))
             (t (ert-union (ert-select-tests (first operands) universe)
                           (ert-select-tests `(or ,@(rest operands))
                                             universe)))))
+         (tag
+          (assert (eql (length operands) 1))
+          (let ((tag (first operands)))
+            (ert-select-tests `(satisfies
+                                ,(lambda (test)
+                                   (member tag (ert-test-tags test))))
+                            universe)))
          (satisfies
           (assert (eql (length operands) 1))
           (ert-remove-if-not (first operands)
@@ -558,7 +573,7 @@ contained in UNIVERSE."
                   (ecase operator
                     ((member eql and not or)
                      `(,operator ,@(mapcar #'rec operands)))
-                    (satisfies
+                    ((member tag satisfies)
                      selector)))))))
     (insert (format "%S" (rec selector)))))
 
@@ -2245,6 +2260,7 @@ This can be used as an inverse of `add-to-list'."
              (should (equal actual-condition expected-condition)))))))
 
 (ert-deftest ert-test-messages ()
+  :tags '(:causes-redisplay)
   (let* ((message-string "Test message")
          (messages-buffer (get-buffer-create "*Messages*"))
          (test (make-ert-test :body (lambda () (message "%s" message-string)))))
@@ -2267,6 +2283,7 @@ This can be used as an inverse of `add-to-list'."
         (rename-buffer "*Messages*")))))
 
 (ert-deftest ert-test-messages-on-log-truncation ()
+  :tags '(:causes-redisplay)
   (let ((test (make-ert-test
                :body (lambda ()
                        ;; Emacs would combine messages if we
@@ -2353,6 +2370,15 @@ This can be used as an inverse of `add-to-list'."
                                     :backtrace nil))))
     (should (equal (ert-select-tests `(and (member ,test) :failed) t)
                    (list test)))))
+
+(ert-deftest ert-test-select-tag ()
+  (let ((test (make-ert-test
+               :name nil
+               :body nil
+               :tags '(a b))))
+    (should (equal (ert-select-tests `(tag a) (list test)) (list test)))
+    (should (equal (ert-select-tests `(tag b) (list test)) (list test)))
+    (should (equal (ert-select-tests `(tag c) (list test)) '()))))
 
 
 ;; Test utility functions.
@@ -2467,6 +2493,7 @@ This can be used as an inverse of `add-to-list'."
 ;; I've seen this test fail sporadically, but haven't found out why
 ;; yet.
 (ert-deftest ert-test-builtin-message-log-flushing ()
+  :tags '(:causes-redisplay)
   (ert-call-with-temporary-messages-buffer
    (lambda ()
      (with-current-buffer "*Messages*"
@@ -2483,6 +2510,7 @@ This can be used as an inverse of `add-to-list'."
          (should (equal (buffer-string) "3\nTest message\n")))))))
 
 (ert-deftest ert-test-force-message-log-buffer-truncation ()
+  :tags '(:causes-redisplay)
   (labels ((body ()
              (loop for i below 5 do
                    (message "%s" i)))
