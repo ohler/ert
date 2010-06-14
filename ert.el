@@ -259,8 +259,18 @@ DATA is displayed to the user and should state the reason of the failure."
          (and (subrp definition)
               (eql (cdr (subr-arity definition)) 'unevalled)))))
 
-(defun ert-expand-should-1 (whole form env inner-expander)
-  (let ((form (macroexpand form env)))
+(defun ert-expand-should-1 (whole form inner-expander)
+  (let ((form
+         ;; If `cl-macroexpand' isn't bound, the code that we're
+         ;; compiling doesn't depend on cl and thus doesn't need an
+         ;; environment arg for `macroexpand'.
+         (if (fboundp 'cl-macroexpand)
+             ;; Suppress warning about run-time call to cl funtion: we
+             ;; only call it if it's fboundp.
+             (with-no-warnings
+               (cl-macroexpand form (and (boundp 'cl-macro-environment)
+                                         cl-macro-environment)))
+           (macroexpand form))))
     ;; It's sort of a wart that `inner-expander' can't influence the
     ;; value the expansion returns.
     (cond
@@ -301,7 +311,7 @@ DATA is displayed to the user and should state the reason of the failure."
                                            (apply -explainer- ,args))))))
                ,value))))))))
 
-(defun ert-expand-should (whole form env inner-expander)
+(defun ert-expand-should (whole form inner-expander)
   "Helper function for the `should' macro and its variants.
 
 Analyzes FORM and returns an expression that has the same
@@ -318,7 +328,7 @@ and error signalling specific to the particular variant of
 FORM-DESCRIPTION-FORM before it has called INNER-FORM."
   (lexical-let ((inner-expander inner-expander))
     (ert-expand-should-1
-     whole form env
+     whole form
      (lambda (inner-form form-description-form)
        (let ((form-description (ert-gensym "form-description-")))
          `(let (,form-description)
@@ -329,20 +339,20 @@ FORM-DESCRIPTION-FORM before it has called INNER-FORM."
                          (ert-signal-should-execution ,form-description))
                       `,form-description)))))))
 
-(defmacro* should (form &environment env)
+(defmacro* should (form)
   "Evaluate FORM.  If it returns nil, abort the current test as failed.
 
 Returns the value of FORM."
-  (ert-expand-should `(should ,form) form env
+  (ert-expand-should `(should ,form) form
                      (lambda (inner-form form-description-form)
                        `(unless ,inner-form
                           (ert-fail ,form-description-form)))))
 
-(defmacro* should-not (form &environment env)
+(defmacro* should-not (form)
   "Evaluate FORM.  If it returns non-nil, abort the current test as failed.
 
 Returns nil."
-  (ert-expand-should `(should-not ,form) form env
+  (ert-expand-should `(should-not ,form) form
                      (lambda (inner-form form-description-form)
                        `(unless (not ,inner-form)
                           (ert-fail ,form-description-form)))))
@@ -382,8 +392,7 @@ TEST, and aborts the current test as failed if it doesn't."
 
 ;; FIXME: The expansion will evaluate the keyword args (if any) in
 ;; nonstandard order.
-(defmacro* should-error (form &rest keys &key type exclude-subtypes test
-                              &environment env)
+(defmacro* should-error (form &rest keys &key type exclude-subtypes test)
   "Evaluate FORM.  Unless it signals an error, abort the current test as failed.
 
 The error signalled additionally needs to match TYPE and satisfy
@@ -398,7 +407,7 @@ element of TYPE.  TEST should be a predicate."
   (unless test (setq test '(lambda (condition) t)))
   (ert-expand-should
    `(should-error ,form ,@keys)
-   form env
+   form
    (lambda (inner-form form-description-form)
      (let ((errorp (ert-gensym "errorp"))
            (form-description-fn (ert-gensym "form-description-fn-")))

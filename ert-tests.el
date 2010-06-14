@@ -181,6 +181,18 @@
     (let ((result (ert-run-test test)))
       (assert (typep result 'ert-test-passed)))))
 
+(ert-deftest ert-test-should-with-macrolet ()
+  (let ((test (make-ert-test :body (lambda ()
+                                     (macrolet ((foo () `(progn t nil)))
+                                       (should (foo)))))))
+    (let ((result (let ((ert-debug-on-error nil))
+                    (ert-run-test test))))
+      (should (typep result 'ert-test-failed))
+      (should (equal
+               (ert-test-result-with-condition-condition result)
+               '(ert-test-failed ((should (foo))
+                                  :form (progn t nil)
+                                  :value nil)))))))
 
 (ert-deftest ert-test-should-error ()
   ;; No error.
