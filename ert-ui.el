@@ -399,6 +399,8 @@ SELECTOR works as described in `ert-select-tests'."
     (ert-run-tests
      selector
      listener)))
+;;;###autoload
+(defalias 'ert 'ert-run-tests-interactively)
 
 
 ;;; Simple view mode for auxiliary information like stack traces or

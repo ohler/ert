@@ -23,7 +23,11 @@
 
 (eval-when-compile
   (require 'cl))
+;; Test definitions should normally depend just on ert, not ert-ui.
+;; However, this file includes tests for ert-ui, so it has to depend
+;; on it.
 (require 'ert-ui)
+
 
 ;;; Self-test that doesn't rely on ERT, for bootstrapping.
 
@@ -259,8 +263,7 @@
                                       :type 'singularity-error
                                       :test (lambda (error) t))))))
     (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-passed))))
-  )
+      (should (typep result 'ert-test-passed)))))
 
 (ert-deftest ert-test-should-error-subtypes ()
   (let ((test (make-ert-test
@@ -318,8 +321,8 @@
                   :form (signal singularity-error nil)
                   :condition (singularity-error)
                   :fail-reason
-                  "the error signalled was a subtype of the expected type"))))))
-  )
+                  "the error signalled was a subtype of the expected type")))))
+    ))
 
 ;; Test that `should' errors contain the information we expect them to.
 (defmacro ert-test-my-list (&rest args)
