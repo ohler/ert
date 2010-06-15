@@ -3,8 +3,6 @@
 ;; Copyright (C) 2008 Phil Hagelberg
 
 ;; Author: Phil Hagelberg
-;; Version: 0.2
-;; Keywords: lisp, tools
 
 ;; This file is NOT part of GNU Emacs.
 
