@@ -238,6 +238,9 @@ Returns the result and stores it in ERT-TEST's `most-recent-result' slot."
 
 ;;; Test selectors.
 
+;; Autoload since ert.el refers to it in the docstring of
+;; `ert-deftest'.
+;;;###autoload
 (defun ert-test-result-type-p (result result-type)
   "Return non-nil if RESULT matches type RESULT-TYPE.
 
@@ -285,6 +288,9 @@ t -- Always matches.
   "Return non-nil if RESULT matches the expected result type for TEST."
   (ert-test-result-type-p result (ert-test-expected-result-type test)))
 
+;; Autoload since ert-ui.el refers to it in the docstring of
+;; `ert-run-tests-interactively'.
+;;;###autoload
 (defun ert-select-tests (selector universe)
   "Select, from UNIVERSE, a set of tests according to SELECTOR.
 

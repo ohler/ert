@@ -182,45 +182,63 @@ and the body."
           remaining)))
 
 ;;;###autoload
-(defmacro* ert-deftest (name () &body keys-and-body)
+(defmacro* ert-deftest (name () &body docstring-keys-and-body)
   "Define NAME (a symbol) as a test.
 
-See `ert-test-result-type-p' for a description of valid values for RESULT-TYPE.
+BODY is evaluated as a `progn' when the test is run.  It should
+signal a condition on failure or just return if the test passes.
 
-\(fn NAME () [:documentation DOCSTRING] [:expected-result RESULT-TYPE] \
+`should', `should-not' and `should-error' are useful for
+assertions in BODY.
+
+Use `ert' to run tests interactively.
+
+Tests that are expected to fail can be marked as such
+using :expected-result.  See `ert-test-result-type-p' for a
+description of valid values for RESULT-TYPE.
+
+\(fn NAME () [DOCSTRING] [:expected-result RESULT-TYPE] \
 \[:tags '(TAG...)] BODY...)"
-  (declare (debug (&define :name test name sexp
-                           [&optional [":documentation" stringp]]
-                           [&optional [":expected-result" sexp]]
-                           [&optional [":tags" sexp]]
-                           def-body)))
-  (destructuring-bind ((&key (expected-result nil expected-result-supplied-p)
-                             (documentation nil documentation-supplied-p)
-                             (tags nil tags-supplied-p))
-                       body)
-      (ert-parse-keys-and-body keys-and-body)
-    `(progn
-       (ert-set-test ',name
-                     (make-ert-test
-                      :name ',name
-                      :body (lambda () ,@body)
-                      ,@(when expected-result-supplied-p
-                          `(:expected-result-type ,expected-result))
-                      ,@(when documentation-supplied-p
-                          `(:documentation ,documentation))
-                      ,@(when tags-supplied-p
-                          `(:tags ,tags))))
-       ;; This hack allows `symbol-file' to associate `ert-deftest'
-       ;; forms with files, and therefore enables `find-function' to
-       ;; work with tests.  However, it leads to warnings in
-       ;; `unload-feature', which doesn't know how to undefine tests
-       ;; and has no mechanism for extension.
-       (push '(ert-deftest . ,name) current-load-list)
-       ',name)))
+  (declare (debug (&define :name test
+                           name sexp [&optional stringp]
+			   [&rest keywordp sexp] def-body))
+           (doc-string 3)
+           (indent 2))
+  (let ((documentation nil)
+        (documentation-supplied-p nil))
+    (when (stringp (first docstring-keys-and-body))
+      (setq documentation (pop docstring-keys-and-body)
+            documentation-supplied-p t))
+    (destructuring-bind ((&key (expected-result nil expected-result-supplied-p)
+                               (tags nil tags-supplied-p))
+                         body)
+        (ert-parse-keys-and-body docstring-keys-and-body)
+      `(progn
+         (ert-set-test ',name
+                       (make-ert-test
+                        :name ',name
+                        ,@(when documentation-supplied-p
+                            `(:documentation ,documentation))
+                        ,@(when expected-result-supplied-p
+                            `(:expected-result-type ,expected-result))
+                        ,@(when tags-supplied-p
+                            `(:tags ,tags))
+                        :body (lambda () ,@body)))
+         ;; This hack allows `symbol-file' to associate `ert-deftest'
+         ;; forms with files, and therefore enables `find-function' to
+         ;; work with tests.  However, it leads to warnings in
+         ;; `unload-feature', which doesn't know how to undefine tests
+         ;; and has no mechanism for extension.
+         (push '(ert-deftest . ,name) current-load-list)
+         ',name))))
 
-;; TODO(ohler): figure out what this means
+;; We use these `put' forms in addition to the (declare (indent)) in
+;; the defmacro form since the `declare' alone does not lead to
+;; correct indentation before ert.el is loaded.  Autoloading these
+;; `put' forms solves this.
 ;;;###autoload
 (progn
+  ;; TODO(ohler): figure out what these mean, and if both are needed.
   (put 'ert-deftest 'lisp-indent-function 2)
   (put 'ert-deftest 'lisp-indent-hook 2))
 

@@ -63,8 +63,8 @@
 
 ;;; Further tests are defined using ERT.
 
-;; Test that nested test bodies run.
 (ert-deftest ert-nested-test-body-runs ()
+  "Test that nested test bodies run."
   (lexical-let ((was-run nil))
     (let ((test (make-ert-test :body (lambda ()
                                        (setq was-run t)))))
@@ -73,7 +73,7 @@
       (assert was-run))))
 
 
-;; Test that pass/fail works.
+;;; Test that pass/fail works.
 (ert-deftest ert-test-pass ()
   (let ((test (make-ert-test :body (lambda ()))))
     (let ((result (ert-run-test test)))
@@ -152,7 +152,7 @@
        (assert (equal condition '(error "error message")) t)))))
 
 
-;; Test that `should' works.
+;;; Test that `should' works.
 (ert-deftest ert-test-should ()
   (let ((test (make-ert-test :body (lambda () (should nil)))))
     (let ((result (let ((ert-debug-on-error nil))
@@ -336,11 +336,11 @@
                   "the error signalled was a subtype of the expected type")))))
     ))
 
-;; Test that `should' errors contain the information we expect them to.
 (defmacro ert-test-my-list (&rest args)
   `(list ,@args))
 
 (ert-deftest ert-test-should-failure-debugging ()
+  "Test that `should' errors contain the information we expect them to."
   (loop for (body expected-condition) in
         `((,(lambda () (let ((x nil)) (should x)))
            (ert-test-failed ((should x) :form x :value nil)))
@@ -367,6 +367,29 @@
                 (assert nil))
             ((error)
              (should (equal actual-condition expected-condition)))))))
+
+(ert-deftest ert-test-deftest ()
+  (should (equal (macroexpand '(ert-deftest abc () "foo" :tags '(bar)))
+                 '(progn
+                    (ert-set-test 'abc
+                                  (make-ert-test :name 'abc
+                                                 :documentation "foo"
+                                                 :tags '(bar)
+                                                 :body (lambda ())))
+                    (push '(ert-deftest . abc) current-load-list)
+                    'abc)))
+  (should (equal (macroexpand '(ert-deftest def ()
+                                 :expected-result ':passed))
+                 '(progn
+                    (ert-set-test 'def
+                                  (make-ert-test :name 'def
+                                                 :expected-result-type ':passed
+                                                 :body (lambda ())))
+                    (push '(ert-deftest . def) current-load-list)
+                    'def)))
+  ;; :documentation keyword is forbidden
+  (should-error (macroexpand '(ert-deftest ghi ()
+                                :documentation "foo"))))
 
 (ert-deftest ert-test-record-backtrace ()
   (let ((test (make-ert-test :body (lambda () (ert-fail "foo")))))
@@ -450,8 +473,8 @@
                            (ert-run-test test2))))
       (should (ert-test-passed-p (ert-run-test test3))))))
 
-;; Test `ert-test-result-expected-p' and (implicitly) `ert-test-result-type-p'.
 (ert-deftest ert-test-test-result-expected-p ()
+  "Test `ert-test-result-expected-p' and (implicitly) `ert-test-result-type-p'."
   ;; passing test
   (let ((test (make-ert-test :body (lambda ()))))
     (should (ert-test-result-expected-p test (ert-run-test test))))
@@ -487,7 +510,7 @@
                                                    nil (not t)))))
     (should-not (ert-test-result-expected-p test (ert-run-test test)))))
 
-;; Test `ert-select-tests'.
+;;; Test `ert-select-tests'.
 (ert-deftest ert-test-select-regexp ()
   (should (equal (ert-select-tests "^ert-test-select-regexp$" t)
                  (list (ert-get-test 'ert-test-select-regexp)))))
@@ -528,7 +551,7 @@
     (should (equal (ert-select-tests `(tag c) (list test)) '()))))
 
 
-;; Test utility functions.
+;;; Tests for utility functions.
 (ert-deftest ert-proper-list-p ()
   (should (ert-proper-list-p '()))
   (should (ert-proper-list-p '(1)))
@@ -631,24 +654,22 @@
     (fset b 'if)
     (should (ert-special-operator-p b))))
 
-;; This test attempts to demonstrate that there is no way to force
-;; immediate truncation of the *Messages* buffer from Lisp (and hence
-;; justifies the existence of
-;; `ert-force-message-log-buffer-truncation'): The only way that came
-;; to my mind was (message ""), which doesn't have the desired effect.
-;;
-;; I've seen this test fail sporadically, but haven't found out why
-;; yet.
 (ert-deftest ert-test-builtin-message-log-flushing ()
+  "This test attempts to demonstrate that there is no way to
+force immediate truncation of the *Messages* buffer from Lisp
+\(and hence justifies the existence of
+`ert-force-message-log-buffer-truncation'\): The only way that
+came to my mind was \(message ""\), which doesn't have the
+desired effect."
   :tags '(:causes-redisplay)
   (ert-call-with-temporary-messages-buffer
    (lambda ()
      (with-current-buffer "*Messages*"
        (should (equal (buffer-string) ""))
-       ;; The sporadic failures involve a spurious newline at the
-       ;; beginning of the buffer, before the first message.  Let's
-       ;; print a message and erase the buffer to see if this
-       ;; eliminates the sporadic failures.
+       ;; We used to get sporadic failures in this test that involved
+       ;; a spurious newline at the beginning of the buffer, before
+       ;; the first message.  Below, we print a message and erase the
+       ;; buffer since this seems to eliminate the sporadic failures.
        (message "foo")
        (erase-buffer)
        (should (equal (buffer-string) ""))
