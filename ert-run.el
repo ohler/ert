@@ -190,15 +190,25 @@ silently or calls the interactive debugger, as appropriate."
                    (point))))
         (delete-region begin end)))))
 
-(defun ert-run-test (test)
-  "Run TEST.
+(defvar ert-running-tests nil
+  "List of tests that are currently in execution.
 
-Returns the result and stores it in TEST's `most-recent-result' slot."
-  (setf (ert-test-most-recent-result test) nil)
+This list is empty while no test is running, has one element
+while a test is running, two elements while a test run from
+inside a test is running, etc.  The list is in order of nesting,
+innermost test first.
+
+The elements are of type `ert-test'.")
+
+(defun ert-run-test (ert-test)
+  "Run ERT-TEST.
+
+Returns the result and stores it in ERT-TEST's `most-recent-result' slot."
+  (setf (ert-test-most-recent-result ert-test) nil)
   (block error
     (lexical-let* ((begin-marker (ert-make-marker-in-messages-buffer))
                    (info (make-ert-test-execution-info
-                          :test test
+                          :test ert-test
                           :result (make-ert-test-aborted-with-non-local-exit)
                           :exit-continuation (lambda ()
                                                (return-from error nil))))
@@ -207,7 +217,8 @@ Returns the result and stores it in TEST's `most-recent-result' slot."
           (let ((ert-should-execution-observer
                  (lambda (form-description)
                    (push form-description should-form-accu)))
-                (message-log-max t))
+                (message-log-max t)
+                (ert-running-tests (cons ert-test ert-running-tests)))
             (ert-run-test-internal info))
         (let ((result (ert-test-execution-info-result info)))
           (setf (ert-test-result-messages result)
@@ -217,8 +228,12 @@ Returns the result and stores it in TEST's `most-recent-result' slot."
           (setq should-form-accu (nreverse should-form-accu))
           (setf (ert-test-result-should-forms result)
                 should-form-accu)
-          (setf (ert-test-most-recent-result test) result)))))
-  (ert-test-most-recent-result test))
+          (setf (ert-test-most-recent-result ert-test) result)))))
+  (ert-test-most-recent-result ert-test))
+
+(defun ert-running-test ()
+  "Returns the top-level test currently executing."
+  (car (last ert-running-tests)))
 
 
 ;;; Test selectors.

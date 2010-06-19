@@ -368,6 +368,17 @@
             ((error)
              (should (equal actual-condition expected-condition)))))))
 
+(ert-deftest ert-test-record-backtrace ()
+  (let ((test (make-ert-test :body (lambda () (ert-fail "foo")))))
+    (let ((result (ert-run-test test)))
+      (should (ert-test-failed-p result))
+      (with-temp-buffer
+        (ert-print-backtrace (ert-test-failed-backtrace result))
+        (goto-char (point-min))
+        (end-of-line)
+        (let ((first-line (buffer-substring-no-properties (point-min) (point))))
+          (should (equal first-line "  signal(ert-test-failed (\"foo\"))")))))))
+
 (ert-deftest ert-test-messages ()
   :tags '(:causes-redisplay)
   (let* ((message-string "Test message")
@@ -411,6 +422,33 @@
                           (buffer-string))
                         "c\nd\n"))))
       (should (equal (ert-test-result-messages result) "a\nb\nc\nd\n")))))
+
+(ert-deftest ert-test-running-tests ()
+  (let ((outer-test (ert-get-test 'ert-test-running-tests)))
+    (should (equal (ert-running-test) outer-test))
+    (let (test1 test2 test3)
+      (setq test1 (make-ert-test
+                   :name "1"
+                   :body (lambda ()
+                           (should (equal (ert-running-test) outer-test))
+                           (should (equal ert-running-tests
+                                          (list test1 test2 test3
+                                                outer-test)))))
+            test2 (make-ert-test
+                   :name "2"
+                   :body (lambda ()
+                           (should (equal (ert-running-test) outer-test))
+                           (should (equal ert-running-tests
+                                          (list test3 test2 outer-test)))
+                           (ert-run-test test1)))
+            test3 (make-ert-test
+                   :name "3"
+                   :body (lambda ()
+                           (should (equal (ert-running-test) outer-test))
+                           (should (equal ert-running-tests
+                                          (list test3 outer-test)))
+                           (ert-run-test test2))))
+      (should (ert-test-passed-p (ert-run-test test3))))))
 
 ;; Test `ert-test-result-expected-p' and (implicitly) `ert-test-result-type-p'.
 (ert-deftest ert-test-test-result-expected-p ()
@@ -545,8 +583,7 @@
   (should-error (ert-parse-keys-and-body '(:bar foo :a))))
 
 
-;; Test `ert-run-tests'.
-(ert-deftest ert-test-run-tests ()
+(ert-deftest ert-test-run-tests-interactively ()
   :tags '(:causes-redisplay)
   (let ((passing-test (make-ert-test :name 'passing-test
                                      :body (lambda () (ert-pass))))
