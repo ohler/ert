@@ -463,7 +463,7 @@ SELECTOR works as described in `ert-select-tests'."
         ("b" ert-results-pop-to-backtrace-for-test-at-point)
         ("m" ert-results-pop-to-messages-for-test-at-point)
         ;; TODO(ohler): Make n and p navigate up and down.
-        ("p" ert-results-toggle-printer-limits-for-test-at-point)
+        ("L" ert-results-toggle-printer-limits-for-test-at-point)
         ("D" ert-delete-test)
         ("l" ert-results-pop-to-should-forms-for-test-at-point)
         ("T" ert-results-pop-to-timings)
