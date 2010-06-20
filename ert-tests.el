@@ -412,18 +412,22 @@
         (should (equal (concat message-string "\n")
                        (ert-test-result-messages result)))))))
 
-(defun ert-call-with-temporary-messages-buffer (thunk)
+(defun ert-call-with-buffer-renamed (buffer-name thunk)
   (lexical-let ((new-buffer-name (generate-new-buffer-name
-                                  "*Messages* orig buffer")))
+                                  (format "%s orig buffer" buffer-name))))
     (unwind-protect
         (progn
-          (with-current-buffer (get-buffer-create "*Messages*")
+          (with-current-buffer (get-buffer-create buffer-name)
             (rename-buffer new-buffer-name))
-          (get-buffer-create "*Messages*")
+          (get-buffer-create buffer-name)
           (funcall thunk))
-      (kill-buffer "*Messages*")
+      (kill-buffer buffer-name)
       (with-current-buffer new-buffer-name
-        (rename-buffer "*Messages*")))))
+        (rename-buffer buffer-name)))))
+
+(defmacro* ert-with-buffer-renamed ((buffer-name-form) &body body)
+  (declare (indent 1))
+  `(ert-call-with-buffer-renamed ,buffer-name-form (lambda () ,@body)))
 
 (ert-deftest ert-test-messages-on-log-truncation ()
   :tags '(:causes-redisplay)
@@ -437,13 +441,12 @@
                        (message "c")
                        (message "d")))))
     (let (result)
-      (ert-call-with-temporary-messages-buffer
-       (lambda ()
-         (let ((message-log-max 2))
-           (setq result (ert-run-test test)))
-         (should (equal (with-current-buffer "*Messages*"
-                          (buffer-string))
-                        "c\nd\n"))))
+      (ert-with-buffer-renamed ("*Messages*")
+        (let ((message-log-max 2))
+          (setq result (ert-run-test test)))
+        (should (equal (with-current-buffer "*Messages*"
+                         (buffer-string))
+                       "c\nd\n")))
       (should (equal (ert-test-result-messages result) "a\nb\nc\nd\n")))))
 
 (ert-deftest ert-test-running-tests ()
@@ -645,6 +648,24 @@
             (when (get-buffer buffer-name)
               (kill-buffer buffer-name))))))))
 
+(ert-deftest ert-test-describe-test ()
+  "Tests `ert-describe-test'."
+  (save-window-excursion
+    (ert-with-buffer-renamed ("*Help*")
+      (if (< emacs-major-version 24)
+          (should-error (ert-describe-test 'ert-describe-test)
+                        :test (lambda (condition)
+                                (should (equal condition
+                                               '(error "Requires Emacs 24")))))
+        (ert-describe-test 'ert-test-describe-test)
+        (with-current-buffer "*Help*"
+          (let ((case-fold-search nil))
+            (should (string-match (concat
+                                   "\\`ert-test-describe-test is a test"
+                                   " defined in `ert-tests.elc?'\\.\n\n"
+                                   "Tests `ert-describe-test'\\.\n\\'")
+                                  (buffer-string)))))))))
+
 (ert-deftest ert-test-special-operator-p ()
   (should (ert-special-operator-p 'if))
   (should-not (ert-special-operator-p 'car))
@@ -659,30 +680,29 @@
 force immediate truncation of the *Messages* buffer from Lisp
 \(and hence justifies the existence of
 `ert-force-message-log-buffer-truncation'\): The only way that
-came to my mind was \(message ""\), which doesn't have the
+came to my mind was \(message \"\"\), which doesn't have the
 desired effect."
   :tags '(:causes-redisplay)
-  (ert-call-with-temporary-messages-buffer
-   (lambda ()
-     (with-current-buffer "*Messages*"
-       (should (equal (buffer-string) ""))
-       ;; We used to get sporadic failures in this test that involved
-       ;; a spurious newline at the beginning of the buffer, before
-       ;; the first message.  Below, we print a message and erase the
-       ;; buffer since this seems to eliminate the sporadic failures.
-       (message "foo")
-       (erase-buffer)
-       (should (equal (buffer-string) ""))
-       (let ((message-log-max 2))
-         (let ((message-log-max t))
-           (loop for i below 4 do
-                 (message "%s" i))
-           (should (equal (buffer-string) "0\n1\n2\n3\n")))
-         (should (equal (buffer-string) "0\n1\n2\n3\n"))
-         (message "")
-         (should (equal (buffer-string) "0\n1\n2\n3\n"))
-         (message "Test message")
-         (should (equal (buffer-string) "3\nTest message\n")))))))
+  (ert-with-buffer-renamed ("*Messages*")
+    (with-current-buffer "*Messages*"
+      (should (equal (buffer-string) ""))
+      ;; We used to get sporadic failures in this test that involved
+      ;; a spurious newline at the beginning of the buffer, before
+      ;; the first message.  Below, we print a message and erase the
+      ;; buffer since this seems to eliminate the sporadic failures.
+      (message "foo")
+      (erase-buffer)
+      (should (equal (buffer-string) ""))
+      (let ((message-log-max 2))
+        (let ((message-log-max t))
+          (loop for i below 4 do
+                (message "%s" i))
+          (should (equal (buffer-string) "0\n1\n2\n3\n")))
+        (should (equal (buffer-string) "0\n1\n2\n3\n"))
+        (message "")
+        (should (equal (buffer-string) "0\n1\n2\n3\n"))
+        (message "Test message")
+        (should (equal (buffer-string) "3\nTest message\n"))))))
 
 (ert-deftest ert-test-force-message-log-buffer-truncation ()
   :tags '(:causes-redisplay)
@@ -692,22 +712,20 @@ desired effect."
            ;; Uses the implicit messages buffer truncation implemented
            ;; in Emacs' C core.
            (c (x)
-             (ert-call-with-temporary-messages-buffer
-              (lambda ()
-                (let ((message-log-max x))
-                  (body))
+             (ert-with-buffer-renamed ("*Messages*")
+               (let ((message-log-max x))
+                 (body))
                 (with-current-buffer "*Messages*"
-                  (buffer-string)))))
+                  (buffer-string))))
            ;; Uses our lisp reimplementation.
            (lisp (x)
-             (ert-call-with-temporary-messages-buffer
-              (lambda ()
-                (let ((message-log-max t))
-                  (body))
-                (let ((message-log-max x))
-                  (ert-force-message-log-buffer-truncation))
-                (with-current-buffer "*Messages*"
-                  (buffer-string))))))
+             (ert-with-buffer-renamed ("*Messages*")
+               (let ((message-log-max t))
+                 (body))
+               (let ((message-log-max x))
+                 (ert-force-message-log-buffer-truncation))
+               (with-current-buffer "*Messages*"
+                 (buffer-string)))))
     (loop for x in '(0 1 2 3 4 t) do
           (should (equal (c x) (lisp x))))))
 
@@ -893,6 +911,33 @@ desired effect."
     (should (eql (ert-coerce-to-vector b) b))
     (should (equal (ert-coerce-to-vector c) (vector)))
     (should (equal (ert-coerce-to-vector d) (vector b a)))))
+
+(ert-deftest ert-test-string-position ()
+  (should (eql (ert-string-position ?x "") nil))
+  (should (eql (ert-string-position ?a "abc") 0))
+  (should (eql (ert-string-position ?b "abc") 1))
+  (should (eql (ert-string-position ?c "abc") 2))
+  (should (eql (ert-string-position ?d "abc") nil))
+  (should (eql (ert-string-position ?A "abc") nil)))
+
+(ert-deftest ert-test-string-first-line ()
+  (should (equal (ert-string-first-line "") ""))
+  (should (equal (ert-string-first-line "abc") "abc"))
+  (should (equal (ert-string-first-line "abc\n") "abc"))
+  (should (equal (ert-string-first-line "foo\nbar") "foo"))
+  (should (equal (ert-string-first-line " foo\nbar\nbaz\n") " foo")))
+
+(ert-deftest ert-string-with-properties ()
+  (should (equal-including-properties (ert-string-with-properties "" 'a 'b) ""))
+  (should (equal-including-properties (ert-string-with-properties "x" 'a 'b)
+                                      #("x" 0 1 (a b))))
+  (should (equal-including-properties
+           (ert-string-with-properties "xy" 'a 'b 'c 'd)
+           #("xy" 0 2 (a b c d))))
+  (let* ((a (ert-string-with-properties "foo" 'foo 'bar))
+         (b (ert-string-with-properties a 'baz 'quux)))
+    (should (equal-including-properties a #("foo" 0 3 (foo bar))))
+    (should (equal-including-properties b #("foo" 0 3 (baz quux foo bar))))))
 
 (ert-deftest ert-test-explain-not-equal ()
   (should (equal (ert-explain-not-equal nil 'foo)

@@ -123,6 +123,11 @@
         unless (funcall test x (funcall key y))
         collect y))
 
+(defun ert-string-position (c s)
+  (loop for i from 0
+        for x across s
+        when (eql x c) return i))
+
 
 ;;; Defining and locating tests.
 
@@ -141,11 +146,21 @@
 
 (defun ert-get-test (symbol)
   "If SYMBOL names a test, return that.  Signal an error otherwise."
-  (assert (ert-test-boundp symbol) t)
+  (unless (ert-test-boundp symbol) (error "No test named `%S'" symbol))
   (get symbol 'ert-test))
 
 (defun ert-set-test (symbol definition)
   "Make SYMBOL name the test DEFINITION, and return DEFINITION."
+  (when (eq symbol 'nil)
+    ;; We disallow this since `ert-test-at-point' and related
+    ;; functions want to return a test name, but also need an
+    ;; out-of-band value on failure.  Nil is the most natural
+    ;; out-of-band value; using 0 or "" or signalling an error would
+    ;; be too awkward.
+    ;;
+    ;; Note that nil is still a valid value for the `name' slot in
+    ;; ert-test objects.  It designates an anonymous test.
+    (error "Attempt to define a test named nil"))
   (put symbol 'ert-test definition)
   definition)
 

@@ -26,40 +26,53 @@
 (require 'ert)
 (require 'ert-run)
 (require 'ewoc)
+(require 'help)
 
 
 ;;; Some basic interactive functions.
 
-(defun ert-read-test-name (prompt &optional default-value history)
+(defun ert-read-test-name (prompt &optional default history
+                                  add-default-to-prompt)
   "Read the name of a test and return it as a symbol.
-Prompt with PROMPT.  By default, return DEFAULT-VALUE."
-  (when (symbolp default-value)
-    (setq default-value (symbol-name default-value)))
-  (intern (completing-read prompt obarray #'ert-test-boundp
-                           t nil history default-value nil)))
+Prompt with PROMPT.  If DEFAULT is a valid test name, use it as a default.
+Signals an error if no test name was read."
+  (etypecase default
+    (string (let ((symbol (intern-soft default)))
+              (unless (and symbol (ert-test-boundp symbol))
+                (setq default nil))))
+    (symbol (setq default
+                  (if (ert-test-boundp default)
+                      (symbol-name default)
+                    nil)))
+    (ert-test (setq default (ert-test-name default))))
+  (when add-default-to-prompt
+    (setq prompt (if (null default)
+                     (format "%s: " prompt)
+                   (format "%s (default %s): " prompt default))))
+  (let ((input (completing-read prompt obarray #'ert-test-boundp
+                                t nil history default nil)))
+    ;; completing-read returns an empty string if default was nil and
+    ;; the user just hit enter.
+    (let ((sym (intern-soft input)))
+      (if (ert-test-boundp sym)
+          sym
+        (error "Input does not name a test")))))
+
+(defun ert-read-test-name-at-point (prompt)
+  "Read the name of a test and return it as a symbol.
+As a default, use the symbol at point, or the test at point if in
+the ERT results buffer.  Prompt with PROMPT, augmented with the
+default (if any)."
+  (ert-read-test-name prompt (ert-test-at-point) nil t))
 
 (defun ert-find-test-other-window (test-name)
   "Find, in another window, the definition of TEST-NAME."
-  (interactive (list (ert-read-test-name "Find test definition: ")))
+  (interactive (list (ert-read-test-name-at-point "Find test definition: ")))
   (find-function-do-it test-name 'ert-deftest 'switch-to-buffer-other-window))
 
 (defun ert-delete-test (test-name)
   "An interactive interface to `ert-make-test-unbound'."
-  (interactive (list (let ((default (thing-at-point 'symbol)))
-                       (when default
-                         (set-text-properties 0 (length default) nil default)
-                         (when (or (string= default "nil")
-                                   (intern-soft default))
-                           (setq default (intern default)))
-                         (unless (ert-test-boundp default)
-                           (setq default nil)))
-                       (completing-read (if (null default)
-                                            "Delete test: "
-                                          (format "Delete test (default %s): "
-                                                  default))
-                                        obarray #'ert-test-boundp
-                                        'really-require-match
-                                        nil nil default nil))))
+  (interactive (list (ert-read-test-name-at-point "Delete test")))
   (ert-make-test-unbound test-name))
 
 (defun ert-delete-all-tests ()
@@ -77,7 +90,6 @@ Prompt with PROMPT.  By default, return DEFAULT-VALUE."
 ;; An entry in the results buffer ewoc.  There is one entry per test.
 (defstruct ert-ewoc-entry
   (test (assert nil))
-  (result nil)
   ;; If the result of this test was expected, its ewoc entry is hidden
   ;; initially.
   (hidden-p (assert nil))
@@ -251,10 +263,27 @@ determines how frequently the progress display is updated.")
     (let ((debugger-previous-backtrace nil))
       (debugger-make-xrefs))))
 
+(defun ert-string-with-properties (s &rest properties)
+  "Returns a string like S but with additional text properties PROPERTIES.
+
+S is not changed by this function."
+  (setq s (copy-sequence s))
+  (add-text-properties 0 (length s) properties s)
+  s)
+
+(defun ert-string-first-line (s)
+  "Return the first line of S, or S if it contains no newlines.
+
+The return value does not include the line terminator."
+  (substring s 0 (ert-string-position ?\n s)))
+
 (defun ert-print-test-for-ewoc (entry)
   "The ewoc print function for ewoc test entries."
   (let* ((test (ert-ewoc-entry-test entry))
-         (result (ert-ewoc-entry-result entry))
+         (stats ert-results-stats)
+         (result (let ((pos (ert-stats-test-index stats test)))
+                   (assert pos)
+                   (aref (ert-stats-test-results stats) pos)))
          (hiddenp (ert-ewoc-entry-hidden-p entry))
          (expandedp (ert-ewoc-entry-expanded-p entry))
          (extended-printer-limits-p (ert-ewoc-entry-extended-printer-limits-p
@@ -271,6 +300,12 @@ determines how frequently the progress display is updated.")
            (ert-insert-test-name-button (ert-test-name test))
            (insert "\n")
            (when (and expandedp (not (eql result 'nil)))
+             (when (ert-test-documentation test)
+               (insert "    "
+                       (ert-string-with-properties
+                        (ert-string-first-line (ert-test-documentation test))
+                        'font-lock-face 'font-lock-doc-face)
+                       "\n"))
              (etypecase result
                (ert-test-passed
                 (insert "    passed\n")
@@ -375,7 +410,6 @@ SELECTOR works as described in `ert-select-tests'."
                           (node (ewoc-nth ewoc pos)))
                      (assert node)
                      (setf (ert-ewoc-entry-test (ewoc-data node)) test)
-                     (setf (ert-ewoc-entry-result (ewoc-data node)) nil)
                      (aset ert-results-progress-bar-string pos
                            (ert-char-for-test-result nil t))
                      (ert-results-update-stats-display ewoc stats)
@@ -386,7 +420,6 @@ SELECTOR works as described in `ert-select-tests'."
                    (let* ((ewoc ert-results-ewoc)
                           (pos (ert-stats-test-index stats test))
                           (node (ewoc-nth ewoc pos)))
-                     (setf (ert-ewoc-entry-result (ewoc-data node)) result)
                      (when (ert-ewoc-entry-hidden-p (ewoc-data node))
                        (setf (ert-ewoc-entry-hidden-p (ewoc-data node))
                              (ert-test-result-expected-p test result)))
@@ -426,6 +459,7 @@ SELECTOR works as described in `ert-select-tests'."
         ("." ert-results-find-test-at-point-other-window)
         ("r" ert-results-rerun-test-at-point)
         ("d" ert-results-rerun-test-at-point-debugging-errors)
+        ("h" ert-results-describe-test-at-point)
         ("b" ert-results-pop-to-backtrace-for-test-at-point)
         ("m" ert-results-pop-to-messages-for-test-at-point)
         ;; TODO(ohler): Make n and p navigate up and down.
@@ -493,10 +527,9 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((node (ert-results-test-node-at-point))
-         (entry (ewoc-data node))
-         (test (ert-ewoc-entry-test entry))
-         (name (ert-test-name test)))
+  (let ((name (ert-test-at-point)))
+    (unless name
+      (error "No test at point"))
     (ert-find-test-other-window name)))
 
 (defun ert-test-name-button-action (button)
@@ -544,6 +577,92 @@ To be used in the ERT results buffer."
           (t
            (goto-char progress-bar-begin)))))
 
+(defun ert-test-at-point ()
+  "Return the name of the test at point as a symbol, or nil if none."
+  (block nil
+    (when (eql major-mode 'ert-results-mode)
+      (let ((test (ert-results-test-at-point-no-redefinition)))
+        (when (and test (ert-test-name test))
+          (return (ert-test-name test)))))
+    (let ((thing (thing-at-point 'symbol)))
+      (let ((sym (intern-soft thing)))
+        (when (ert-test-boundp sym)
+          (return sym))))
+    (return nil)))
+
+(defun ert-results-test-at-point-no-redefinition ()
+  "Return the test at point, or nil.
+
+To be used in the ERT results buffer."
+  (assert (eql major-mode 'ert-results-mode))
+  (if (ert-results-test-node-or-null-at-point)
+      (let* ((node (ert-results-test-node-at-point))
+             (test (ert-ewoc-entry-test (ewoc-data node))))
+        test)
+    (let ((progress-bar-begin ert-results-progress-bar-button-begin))
+      (when (and (<= progress-bar-begin (point))
+                 (< (point) (button-end (button-at progress-bar-begin))))
+        (let* ((test-index (- (point) progress-bar-begin))
+               (test (aref (ert-stats-tests ert-results-stats)
+                           test-index)))
+          test)))))
+
+(defun ert-results-test-at-point-allow-redefinition ()
+  "Looks up the test at point, and checks whether it has been redefined.
+
+To be used in the ERT results buffer.
+
+Returns a list of two elements: the test (or nil) and a symbol
+specifying whether the test has been redefined.
+
+If a new test has been defined with the same name as the test at
+point, replaces the test at point with the new test, and returns
+the new test and the symbol `redefined'.
+
+If the test has been deleted, returns the old test and the symbol
+`deleted'.
+
+If the test is still current, returns the test and the symbol nil.
+
+If there is no test at point, returns a list with two nils."
+  (let ((test (ert-results-test-at-point-no-redefinition)))
+    (cond ((null test)
+           `(nil nil))
+          ((null (ert-test-name test))
+           `(,test nil))
+          (t
+           (let* ((name (ert-test-name test))
+                  (new-test (and (ert-test-boundp name)
+                                 (ert-get-test name))))
+             (cond ((eql test new-test)
+                    `(,test nil))
+                   ((null new-test)
+                    `(,test deleted))
+                   (t
+                    (ert-results-update-after-test-redefinition
+                     (ert-stats-test-index ert-results-stats test)
+                     new-test)
+                    `(,new-test redefined))))))))
+
+(defun ert-results-update-after-test-redefinition (test-index new-test)
+  (let* ((stats ert-results-stats)
+         (ewoc ert-results-ewoc)
+         (node (ewoc-nth ewoc test-index))
+         (entry (ewoc-data node))
+         (old-test (aref (ert-stats-tests stats) test-index)))
+    (setf
+     (ert-ewoc-entry-test entry) new-test
+     (aref (ert-stats-tests stats) test-index) new-test
+     (aref (ert-stats-test-results stats) test-index) nil
+     (aref ert-results-progress-bar-string test-index) (ert-char-for-test-result
+                                                        nil t))
+    (remhash (or (ert-test-name old-test) old-test) (ert-stats-test-map stats))
+    (setf (gethash (or (ert-test-name new-test) new-test)
+                   (ert-stats-test-map stats))
+          test-index)
+    (ewoc-invalidate ewoc node))
+  nil)
+
 (defun ert-button-action-position ()
   "The buffer position where the last button action was triggered."
   (cond ((integerp last-command-event)
@@ -562,38 +681,36 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((ewoc ert-results-ewoc)
-         (node (ert-results-test-node-at-point))
-         (entry (ewoc-data node))
-         (old-test (ert-ewoc-entry-test entry))
-         (test-name (ert-test-name old-test))
-         ;; FIXME: Write a test for this lookup.
-         (test (if test-name
-                   (if (ert-test-boundp test-name)
-                       (ert-get-test test-name)
-                     (error "No such test: %S" test-name))
-                 old-test))
-         (stats ert-results-stats)
-         (pos (gethash test (ert-stats-test-map stats)))
-         (progress-message (format "Running test %S" (ert-test-name test))))
-    ;; Need to save and restore point manually here: When point is on
-    ;; the first visible ewoc entry while the header is updated, point
-    ;; moves to the top of the buffer.  This is undesirable, and a
-    ;; simple `save-excursion' doesn't prevent it.
-    (let ((point (point)))
-      (unwind-protect
-          (unwind-protect
-              (progn
-                (message "%s..." progress-message)
-                (ert-run-or-rerun-test stats test
-                                       ert-results-listener))
-            (ert-results-update-stats-display ewoc stats)
-            (message "%s...%s"
-                     progress-message
-                     (let ((result (ert-test-most-recent-result test)))
-                       (ert-string-for-test-result
-                        result (ert-test-result-expected-p test result)))))
-        (goto-char point)))))
+  (destructuring-bind (test redefinition-state)
+      (ert-results-test-at-point-allow-redefinition)
+    (when (null test)
+      (error "No test at point"))
+    (let* ((stats ert-results-stats)
+           (pos (ert-stats-test-index stats test))
+           (progress-message (format "Running %stest %S"
+                                     (ecase redefinition-state
+                                       ((nil) "")
+                                       (redefined "new definition of ")
+                                       (deleted "deleted "))
+                                     (ert-test-name test))))
+      ;; Need to save and restore point manually here: When point is on
+      ;; the first visible ewoc entry while the header is updated, point
+      ;; moves to the top of the buffer.  This is undesirable, and a
+      ;; simple `save-excursion' doesn't prevent it.
+      (let ((point (point)))
+        (unwind-protect
+            (unwind-protect
+                (progn
+                  (message "%s..." progress-message)
+                  (ert-run-or-rerun-test stats test
+                                         ert-results-listener))
+              (ert-results-update-stats-display ert-results-ewoc stats)
+              (message "%s...%s"
+                       progress-message
+                       (let ((result (ert-test-most-recent-result test)))
+                         (ert-string-for-test-result
+                          result (ert-test-result-expected-p test result)))))
+          (goto-char point))))))
 
 (defun ert-results-rerun-test-at-point-debugging-errors ()
   "Re-run the test at point with `ert-debug-on-error' bound to t.
@@ -608,10 +725,10 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((node (ert-results-test-node-at-point))
-         (entry (ewoc-data node))
-         (test (ert-ewoc-entry-test entry))
-         (result (ert-ewoc-entry-result entry)))
+  (let* ((test (ert-results-test-at-point-no-redefinition))
+         (stats ert-results-stats)
+         (pos (ert-stats-test-index stats test))
+         (result (aref (ert-stats-test-results stats) pos)))
     (etypecase result
       (ert-test-passed (error "Test passed, no backtrace available"))
       (ert-test-result-with-condition
@@ -638,10 +755,10 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((node (ert-results-test-node-at-point))
-         (entry (ewoc-data node))
-         (test (ert-ewoc-entry-test entry))
-         (result (ert-ewoc-entry-result entry)))
+  (let* ((test (ert-results-test-at-point-no-redefinition))
+         (stats ert-results-stats)
+         (pos (ert-stats-test-index stats test))
+         (result (aref (ert-stats-test-results stats) pos)))
     (let ((buffer (get-buffer-create "*ERT Messages*")))
       (pop-to-buffer buffer)
       (setq buffer-read-only t)
@@ -660,10 +777,10 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((node (ert-results-test-node-at-point))
-         (entry (ewoc-data node))
-         (test (ert-ewoc-entry-test entry))
-         (result (ert-ewoc-entry-result entry)))
+  (let* ((test (ert-results-test-at-point-no-redefinition))
+         (stats ert-results-stats)
+         (pos (ert-stats-test-index stats test))
+         (result (aref (ert-stats-test-results stats) pos)))
     (let ((buffer (get-buffer-create "*ERT list of should forms*")))
       (pop-to-buffer buffer)
       (setq buffer-read-only t)
@@ -738,6 +855,54 @@ To be used in the ERT results buffer."
       (goto-char (point-min))
       (insert "Tests by run time (seconds):\n\n")
       (forward-line 1))))
+
+;;;###autoload
+(defun ert-describe-test (test-or-test-name)
+  "Display the documentation for TEST-OR-TEST-NAME (a symbol or ert-test)."
+  (interactive (list (ert-read-test-name-at-point "Describe test")))
+  (when (< emacs-major-version 24)
+    (error "Requires Emacs 24"))
+  (let (test-name
+        test-definition)
+    (etypecase test-or-test-name
+      (symbol (setq test-name test-or-test-name
+                    test-definition (ert-get-test test-or-test-name)))
+      (ert-test (setq test-name (ert-test-name test-or-test-name)
+                      test-definition test-or-test-name)))
+    (help-setup-xref (list #'ert-describe-test test-or-test-name)
+                     (called-interactively-p 'interactive))
+    (save-excursion
+      (with-help-window (help-buffer)
+        (with-current-buffer (help-buffer)
+          (insert (if test-name (format "%S" test-name) "<anonymous test>"))
+          (insert " is a test")
+          (let ((file-name (and test-name
+                                (symbol-file test-name 'ert-deftest))))
+            (when file-name
+              (insert " defined in `" (file-name-nondirectory file-name) "'")
+              (save-excursion
+                (re-search-backward "`\\([^`']+\\)'" nil t)
+                (help-xref-button 1 'help-function-def test-name file-name)))
+            (insert ".")
+            (fill-region-as-paragraph (point-min) (point))
+            (insert "\n\n")
+            (unless (and (ert-test-boundp test-name)
+                         (eql (ert-get-test test-name) test-definition))
+              (let ((begin (point)))
+                (insert "Note: This test has been redefined or deleted, "
+                        "this documentation refers to an old definition.")
+                (fill-region-as-paragraph begin (point)))
+              (insert "\n\n"))
+            (insert (or (ert-test-documentation test-definition)
+                        "It is not documented.")
+                    "\n")))))))
+
+(defun ert-results-describe-test-at-point ()
+  "Display the documentation of the test at point.
+
+To be used in the ERT results buffer."
+  (interactive)
+  (ert-describe-test (ert-results-test-at-point-no-redefinition)))
 
 (provide 'ert-ui)
 
