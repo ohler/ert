@@ -1,4 +1,4 @@
-;;; ert-experimental-tests.el --- Tests for ert-experimental.el
+;;; ert-exp-t.el --- Tests for ert-exp.el
 
 ;; Copyright (C) 2008 Phil Hagelberg
 
@@ -19,7 +19,6 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see `http://www.gnu.org/licenses/'.
 
-
 ;;; Commentary:
 
 ;; This file is part of ERT, the Emacs Lisp Regression Testing tool.
@@ -28,7 +27,7 @@
 ;;; Code:
 
 (require 'ert)
-(require 'ert-experimental)
+(require 'ert-exp)
 
 ;;; Predicates
 
@@ -93,6 +92,6 @@
     (should (string-equal (buffer-string) "Foo BAR baz"))))
 
 
-(provide 'ert-experimental-tests)
+(provide 'ert-exp-t)
 
-;;; ert-experimental-tests.el ends here
+;;; ert-exp-t.el ends here

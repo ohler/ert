@@ -1,4 +1,4 @@
-;;; ert-experimental.el --- Staging area for proposed extensions to ERT
+;;; ert-exp.el --- Staging area for experimental extensions to ERT
 
 ;; Copyright (C) 2008 Phil Hagelberg
 
@@ -294,6 +294,6 @@ Run the hook `ert-simulate-command-post-hook' at the very end."
     return-value))
 
 
-(provide 'ert-experimental)
+(provide 'ert-exp)
 
-;;; ert-experimental.el ends here
+;;; ert-exp.el ends here
