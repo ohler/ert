@@ -182,10 +182,6 @@ This mainly sets up debugger-related bindings."
     (setf (ert-test-execution-info-result info) (make-ert-test-passed)))
   nil)
 
-(defun ert-make-marker-in-messages-buffer ()
-  (with-current-buffer (get-buffer-create "*Messages*")
-    (set-marker (make-marker) (point-max))))
-
 (defun ert-force-message-log-buffer-truncation ()
   "Immediately truncate *Messages* buffer according to `message-log-max'.
 
@@ -222,29 +218,34 @@ The elements are of type `ert-test'.")
 Returns the result and stores it in ERT-TEST's `most-recent-result' slot."
   (setf (ert-test-most-recent-result ert-test) nil)
   (block error
-    (lexical-let* ((begin-marker (ert-make-marker-in-messages-buffer))
-                   (info (make-ert-test-execution-info
-                          :test ert-test
-                          :result (make-ert-test-aborted-with-non-local-exit)
-                          :exit-continuation (lambda ()
-                                               (return-from error nil))))
-                   (should-form-accu (list)))
+    (lexical-let ((begin-marker
+                   (with-current-buffer (get-buffer-create "*Messages*")
+                     (set-marker (make-marker) (point-max)))))
       (unwind-protect
-          (let ((ert-should-execution-observer
-                 (lambda (form-description)
-                   (push form-description should-form-accu)))
-                (message-log-max t)
-                (ert-running-tests (cons ert-test ert-running-tests)))
-            (ert-run-test-internal info))
-        (let ((result (ert-test-execution-info-result info)))
-          (setf (ert-test-result-messages result)
-                (with-current-buffer (get-buffer-create "*Messages*")
-                  (buffer-substring begin-marker (point-max))))
-          (ert-force-message-log-buffer-truncation)
-          (setq should-form-accu (nreverse should-form-accu))
-          (setf (ert-test-result-should-forms result)
-                should-form-accu)
-          (setf (ert-test-most-recent-result ert-test) result)))))
+          (lexical-let ((info (make-ert-test-execution-info
+                               :test ert-test
+                               :result
+                               (make-ert-test-aborted-with-non-local-exit)
+                               :exit-continuation (lambda ()
+                                                    (return-from error nil))))
+                        (should-form-accu (list)))
+            (unwind-protect
+                (let ((ert-should-execution-observer
+                       (lambda (form-description)
+                         (push form-description should-form-accu)))
+                      (message-log-max t)
+                      (ert-running-tests (cons ert-test ert-running-tests)))
+                  (ert-run-test-internal info))
+              (let ((result (ert-test-execution-info-result info)))
+                (setf (ert-test-result-messages result)
+                      (with-current-buffer (get-buffer-create "*Messages*")
+                        (buffer-substring begin-marker (point-max))))
+                (ert-force-message-log-buffer-truncation)
+                (setq should-form-accu (nreverse should-form-accu))
+                (setf (ert-test-result-should-forms result)
+                      should-form-accu)
+                (setf (ert-test-most-recent-result ert-test) result))))
+        (set-marker begin-marker nil))))
   (ert-test-most-recent-result ert-test))
 
 (defun ert-running-test ()
