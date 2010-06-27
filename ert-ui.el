@@ -30,6 +30,7 @@
   (require 'cl))
 (require 'ert)
 (require 'ert-run)
+(require 'easymenu)
 (require 'ewoc)
 (require 'help)
 
@@ -481,23 +482,40 @@ and how to display message."
 
 (loop for (key binding) in
       '(("j" ert-results-jump-between-summary-and-result)
-        ("." ert-results-find-test-at-point-other-window)
         ("r" ert-results-rerun-test-at-point)
         ("d" ert-results-rerun-test-at-point-debugging-errors)
-        ("h" ert-results-describe-test-at-point)
+        ("." ert-results-find-test-at-point-other-window)
         ("b" ert-results-pop-to-backtrace-for-test-at-point)
         ("m" ert-results-pop-to-messages-for-test-at-point)
+        ("l" ert-results-pop-to-should-forms-for-test-at-point)
+        ("h" ert-results-describe-test-at-point)
         ;; TODO(ohler): Make n and p navigate up and down.
         ("L" ert-results-toggle-printer-limits-for-test-at-point)
         ("D" ert-delete-test)
-        ("l" ert-results-pop-to-should-forms-for-test-at-point)
         ("T" ert-results-pop-to-timings)
         ("q" quit-window)
-        ([tab] forward-button)
+        ("\t" forward-button)
         ([backtab] backward-button)
         )
       do
       (define-key ert-results-mode-map key binding))
+
+(easy-menu-define ert-results-mode-menu ert-results-mode-map
+  "Menu for `ert-results-mode'."
+  '("ERT Results"
+    ["Re-run test" ert-results-rerun-test-at-point]
+    ["Debug test" ert-results-rerun-test-at-point-debugging-errors]
+    ["Show test definition" ert-results-find-test-at-point-other-window]
+    "--"
+    ["Show backtrace" ert-results-pop-to-backtrace-for-test-at-point]
+    ["Show messages" ert-results-pop-to-messages-for-test-at-point]
+    ["Show `should' forms" ert-results-pop-to-should-forms-for-test-at-point]
+    ["Describe test" ert-results-describe-test-at-point]
+    "--"
+    ["Delete test" ert-delete-test]
+    "--"
+    ["Show execution time of each test" ert-results-pop-to-timings]
+    ))
 
 (define-button-type 'ert-results-progress-bar-button
   'action #'ert-results-progress-bar-button-action
