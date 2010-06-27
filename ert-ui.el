@@ -275,12 +275,13 @@ determines how frequently the progress display is updated.")
   "Attach cross-references to function names between BEGIN and END.
 
 BEGIN and END specify a region in the current buffer."
-  (save-restriction
-    (narrow-to-region begin (point))
-    ;; Inhibit optimization in `debugger-make-xrefs' that would
-    ;; sometimes insert unrelated backtrace info into our buffer.
-    (let ((debugger-previous-backtrace nil))
-      (debugger-make-xrefs))))
+  (save-excursion
+    (save-restriction
+      (narrow-to-region begin (point))
+      ;; Inhibit optimization in `debugger-make-xrefs' that would
+      ;; sometimes insert unrelated backtrace info into our buffer.
+      (let ((debugger-previous-backtrace nil))
+        (debugger-make-xrefs)))))
 
 (defun ert-string-with-properties (s &rest properties)
   "Return a string like S but with additional text properties PROPERTIES.
