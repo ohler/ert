@@ -436,13 +436,14 @@ This is useful if THUNK has undesirable side-effects on an Emacs
 buffer with a fixed name such as *Messages*."
   (lexical-let ((new-buffer-name (generate-new-buffer-name
                                   (format "%s orig buffer" buffer-name))))
+    (with-current-buffer (get-buffer-create buffer-name)
+      (rename-buffer new-buffer-name))
     (unwind-protect
         (progn
-          (with-current-buffer (get-buffer-create buffer-name)
-            (rename-buffer new-buffer-name))
           (get-buffer-create buffer-name)
           (funcall thunk))
-      (kill-buffer buffer-name)
+      (when (get-buffer buffer-name)
+        (kill-buffer buffer-name))
       (with-current-buffer new-buffer-name
         (rename-buffer buffer-name)))))
 
