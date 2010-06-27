@@ -481,7 +481,14 @@ and how to display message."
   "Major mode for viewing results of ERT test runs.")
 
 (loop for (key binding) in
-      '(("j" ert-results-jump-between-summary-and-result)
+      '(;; Stuff that's not in the menu.
+        ;; TODO(ohler): Make n and p navigate up and down.
+        ("\t" forward-button)
+        ([backtab] backward-button)
+        ("j" ert-results-jump-between-summary-and-result)
+        ("q" quit-window)
+        ("L" ert-results-toggle-printer-limits-for-test-at-point)
+        ;; Stuff that is in the menu.
         ("r" ert-results-rerun-test-at-point)
         ("d" ert-results-rerun-test-at-point-debugging-errors)
         ("." ert-results-find-test-at-point-other-window)
@@ -489,13 +496,8 @@ and how to display message."
         ("m" ert-results-pop-to-messages-for-test-at-point)
         ("l" ert-results-pop-to-should-forms-for-test-at-point)
         ("h" ert-results-describe-test-at-point)
-        ;; TODO(ohler): Make n and p navigate up and down.
-        ("L" ert-results-toggle-printer-limits-for-test-at-point)
         ("D" ert-delete-test)
         ("T" ert-results-pop-to-timings)
-        ("q" quit-window)
-        ("\t" forward-button)
-        ([backtab] backward-button)
         )
       do
       (define-key ert-results-mode-map key binding))
