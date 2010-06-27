@@ -19,6 +19,12 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see `http://www.gnu.org/licenses/'.
 
+
+;;; Commentary:
+
+;; This file is part of ERT, the Emacs Lisp Regression Testing tool.
+;; See ert.el or the texinfo manual for more details.
+
 ;;; Code:
 
 (eval-when-compile
@@ -34,7 +40,12 @@
 (defun ert-read-test-name (prompt &optional default history
                                   add-default-to-prompt)
   "Read the name of a test and return it as a symbol.
-Prompt with PROMPT.  If DEFAULT is a valid test name, use it as a default.
+
+Prompt with PROMPT.  If DEFAULT is a valid test name, use it as a
+default.  HISTORY is the history to use; see `completing-read'.
+If ADD-DEFAULT-TO-PROMPT is non-nil, PROMPT will be modified to
+include the default, if any.
+
 Signals an error if no test name was read."
   (etypecase default
     (string (let ((symbol (intern-soft default)))
@@ -71,7 +82,9 @@ default (if any)."
   (find-function-do-it test-name 'ert-deftest 'switch-to-buffer-other-window))
 
 (defun ert-delete-test (test-name)
-  "An interactive interface to `ert-make-test-unbound'."
+  "Make the test TEST-NAME unbound.
+
+Nothing more than an interactive interface to `ert-make-test-unbound'."
   (interactive (list (ert-read-test-name-at-point "Delete test")))
   (ert-make-test-unbound test-name))
 
@@ -125,11 +138,13 @@ default (if any)."
 (defvar ert-current-run-stats nil)
 
 (defun ert-insert-test-name-button (test-name)
+  "Insert a button that links to TEST-NAME."
   (insert-text-button (format "%S" test-name)
                       :type 'ert-test-name-button
                       'ert-test-name test-name))
 
 (defun ert-results-format-expected-unexpected (expected unexpected)
+  "Return a string indicating EXPECTED expected results, UNEXPECTED unexpected."
   (if (zerop unexpected)
       (format "%s" expected)
     (format "%s (%s unexpected)" (+ expected unexpected) unexpected)))
@@ -242,6 +257,7 @@ determines how frequently the progress display is updated.")
           (+ (float-time) ert-test-run-redisplay-interval-secs))))
 
 (defun ert-tests-running-mode-line-indicator ()
+  "Return a string for the mode line that shows the test run progress."
   (let* ((stats ert-current-run-stats)
          (tests-total (ert-stats-total stats))
          (tests-completed (ert-stats-completed stats)))
@@ -256,6 +272,9 @@ determines how frequently the progress display is updated.")
                         (ert-test-name (ert-stats-current-test stats))))))))
 
 (defun ert-make-xrefs-region (begin end)
+  "Attach cross-references to function names between BEGIN and END.
+
+BEGIN and END specify a region in the current buffer."
   (save-restriction
     (narrow-to-region begin (point))
     ;; Inhibit optimization in `debugger-make-xrefs' that would
@@ -264,7 +283,7 @@ determines how frequently the progress display is updated.")
       (debugger-make-xrefs))))
 
 (defun ert-string-with-properties (s &rest properties)
-  "Returns a string like S but with additional text properties PROPERTIES.
+  "Return a string like S but with additional text properties PROPERTIES.
 
 S is not changed by this function."
   (setq s (copy-sequence s))
@@ -278,7 +297,7 @@ The return value does not include the line terminator."
   (substring s 0 (ert-string-position ?\n s)))
 
 (defun ert-print-test-for-ewoc (entry)
-  "The ewoc print function for ewoc test entries."
+  "The ewoc print function for ewoc test entries.  ENTRY is the entry to print."
   (let* ((test (ert-ewoc-entry-test entry))
          (stats ert-results-stats)
          (result (let ((pos (ert-stats-test-index stats test)))
@@ -325,7 +344,10 @@ The return value does not include the line terminator."
   nil)
 
 (defun ert-setup-results-buffer (stats listener buffer-name)
-  "Set up a test results buffer."
+  "Set up a test results buffer.
+
+STATS is the stats object; LISTENER is the results listener;
+BUFFER-NAME, if non-nil, is the buffer name to use."
   (unless buffer-name (setq buffer-name "*ert*"))
   (let ((buffer (get-buffer-create buffer-name)))
     (with-current-buffer buffer
@@ -360,7 +382,10 @@ The return value does not include the line terminator."
                                     &optional output-buffer-name message-fn)
   "Run the tests specified by SELECTOR and display the results in a buffer.
 
-SELECTOR works as described in `ert-select-tests'."
+SELECTOR works as described in `ert-select-tests'.
+OUTPUT-BUFFER-NAME and MESSAGE-FN should normally be nil; they
+are used for automated self-tests and specify which buffer to use
+and how to display message."
   (interactive
    (list (let ((default (if ert-selector-history
                             (first ert-selector-history)
@@ -538,6 +563,7 @@ To be used in the ERT results buffer."
     (ert-find-test-other-window name)))
 
 (defun ert-ewoc-position (ewoc node)
+  ;; checkdoc-order: nil
   "Return the position of NODE in EWOC, or nil if NODE is not in EWOC."
   (loop for i from 0
         for node-here = (ewoc-nth ewoc 0) then (ewoc-next ewoc node-here)
@@ -608,7 +634,7 @@ To be used in the ERT results buffer."
           test)))))
 
 (defun ert-results-test-at-point-allow-redefinition ()
-  "Looks up the test at point, and checks whether it has been redefined.
+  "Look up the test at point, and check whether it has been redefined.
 
 To be used in the ERT results buffer.
 
@@ -645,6 +671,10 @@ If there is no test at point, returns a list with two nils."
                     `(,new-test redefined))))))))
 
 (defun ert-results-update-after-test-redefinition (test-index new-test)
+  "Update results buffer after the test at index TEST-INDEX has been redefined.
+
+Also updates the stats object.  NEW-TEST is the new test
+definition."
   (let* ((stats ert-results-stats)
          (ewoc ert-results-ewoc)
          (node (ewoc-nth ewoc test-index))
@@ -672,7 +702,7 @@ If there is no test at point, returns a list with two nils."
         (t (assert nil))))
 
 (defun ert-results-progress-bar-button-action (button)
-  "Find the ewoc node that represents the same test as the character clicked."
+  "Jump to details for the test represented by the character clicked in BUTTON."
   (goto-char (ert-button-action-position))
   (ert-results-jump-between-summary-and-result))
 

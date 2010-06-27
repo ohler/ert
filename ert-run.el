@@ -19,6 +19,12 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see `http://www.gnu.org/licenses/'.
 
+
+;;; Commentary:
+
+;; This file is part of ERT, the Emacs Lisp Regression Testing tool.
+;; See ert.el or the texinfo manual for more details.
+
 ;;; Code:
 
 (eval-when-compile
@@ -109,10 +115,14 @@
   ert-debug-on-error)
 
 (defun ert-run-test-debugger (info debugger-args)
-  "The function that `debugger' is bound to during the execution of tests.
+  "During a test run, `debugger' is bound to a closure that calls this function.
 
-Records failures and errors and either terminates the test
-silently or calls the interactive debugger, as appropriate."
+This function records failures and errors and either terminates
+the test silently or calls the interactive debugger, as
+appropriate.
+
+INFO is the ert-test-execution-info corresponding to this test
+run.  DEBUGGER-ARGS are the arguments to `debugger'."
   (destructuring-bind (first-debugger-arg &rest more-debugger-args)
       debugger-args
     (ecase first-debugger-arg
@@ -148,6 +158,9 @@ silently or calls the interactive debugger, as appropriate."
          (funcall (ert-test-execution-info-exit-continuation info)))))))
 
 (defun ert-run-test-internal (ert-test-execution-info)
+  "Low-level function to run a test according to ERT-TEST-EXECUTION-INFO.
+
+This mainly sets up debugger-related bindings."
   (lexical-let ((info ert-test-execution-info))
     (setf (ert-test-execution-info-next-debugger info) debugger
           (ert-test-execution-info-ert-debug-on-error info) ert-debug-on-error)
@@ -174,6 +187,9 @@ silently or calls the interactive debugger, as appropriate."
     (set-marker (make-marker) (point-max))))
 
 (defun ert-force-message-log-buffer-truncation ()
+  "Immediately truncate *Messages* buffer according to `message-log-max'.
+
+This can be useful after reducing the value of `message-log-max'."
   (with-current-buffer (get-buffer-create "*Messages*")
     ;; This is a reimplementation of this part of message_dolog() in xdisp.c:
     ;; if (NATNUMP (Vmessage_log_max))
@@ -232,7 +248,7 @@ Returns the result and stores it in ERT-TEST's `most-recent-result' slot."
   (ert-test-most-recent-result ert-test))
 
 (defun ert-running-test ()
-  "Returns the top-level test currently executing."
+  "Return the top-level test currently executing."
   (car (last ert-running-tests)))
 
 
@@ -285,17 +301,18 @@ t -- Always matches.
           (funcall (first operands) result)))))))
 
 (defun ert-test-result-expected-p (test result)
-  "Return non-nil if RESULT matches the expected result type for TEST."
+  "Return non-nil if TEST's expected result type matches RESULT."
   (ert-test-result-type-p result (ert-test-expected-result-type test)))
 
 ;; Autoload since ert-ui.el refers to it in the docstring of
 ;; `ert-run-tests-interactively'.
 ;;;###autoload
 (defun ert-select-tests (selector universe)
-  "Select, from UNIVERSE, a set of tests according to SELECTOR.
+  "Return the tests that match SELECTOR.
 
-UNIVERSE should be a list of tests, or t, which refers to all
-tests named by symbols in `obarray'.
+UNIVERSE specifies the set of tests to select from; it should be
+a list of tests, or t, which refers to all tests named by symbols
+in `obarray'.
 
 Returns the set of tests as a list.
 
@@ -491,11 +508,13 @@ contained in UNIVERSE."
   (next-redisplay 0.0))
 
 (defun ert-stats-completed-expected (stats)
+  "Returns the number of tests in STATS that had expected results."
   (+ (ert-stats-passed-expected stats)
      (ert-stats-failed-expected stats)
      (ert-stats-error-expected stats)))
 
 (defun ert-stats-completed-unexpected (stats)
+  "Returns the number of tests in STATS that had unexpected results."
   (+ (ert-stats-passed-unexpected stats)
      (ert-stats-failed-unexpected stats)
      (ert-stats-error-unexpected stats)))
@@ -511,6 +530,7 @@ contained in UNIVERSE."
 
 
 (defun ert-run-or-rerun-test (stats test listener)
+  ;; checkdoc-order: nil
   "Run the single test TEST and record the result using STATS and LISTENER."
   (let ((ert-current-run-stats stats)
         (pos (ert-stats-test-index stats test))
@@ -597,6 +617,7 @@ contained in UNIVERSE."
       stats)))
 
 (defun ert-stats-test-index (stats test)
+  ;; checkdoc-order: nil
   "Return the index of TEST in the run represented by STATS."
   (gethash (or (ert-test-name test) test) (ert-stats-test-map stats)))
 
@@ -608,7 +629,9 @@ contained in UNIVERSE."
   (format-time-string "%Y-%m-%d %T%z" time))
 
 (defun ert-char-for-test-result (result expectedp)
-  "Return a character that represents the test result RESULT."
+  "Return a character that represents the test result RESULT.
+
+EXPECTEDP specifies whether the result was expected."
   (let ((char
          (etypecase result
            (ert-test-passed ?.)
@@ -621,7 +644,9 @@ contained in UNIVERSE."
       (upcase char))))
 
 (defun ert-string-for-test-result (result expectedp)
-  "Return a string that represents the test result RESULT."
+  "Return a string that represents the test result RESULT.
+
+EXPECTEDP specifies whether the result was expected."
   (etypecase result
     (ert-test-passed "passed")
     (ert-test-failed "failed")

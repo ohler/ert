@@ -68,34 +68,46 @@
 ;;; Copies/reimplementations of cl functions.
 
 (defun ert-cl-do-remf (plist tag)
-  "Copy of `cl-do-remf'."
+  "Copy of `cl-do-remf'.  Modify PLIST by removing TAG."
   (let ((p (cdr plist)))
     (while (and (cdr p) (not (eq (car (cdr p)) tag))) (setq p (cdr (cdr p))))
     (and (cdr p) (progn (setcdr p (cdr (cdr (cdr p)))) t))))
 
 (defun ert-remprop (sym tag)
-  "Copy of `cl-remprop'."
+  "Copy of `cl-remprop'.  Modify SYM's plist by removing TAG."
   (let ((plist (symbol-plist sym)))
     (if (and plist (eq tag (car plist)))
 	(progn (setplist sym (cdr (cdr plist))) t)
       (ert-cl-do-remf plist tag))))
 
 (defun ert-remove-if-not (ert-pred ert-list)
+  "A reimplementation of `remove-if-not'.
+
+ERT-PRED is a predicate, ERT-LIST is the input list."
   (loop for ert-x in ert-list
         if (funcall ert-pred ert-x)
         collect ert-x))
 
 (defun ert-intersection (a b)
+  "A reimplementation of `intersection'.  Intersect the sets A and B.
+
+Elements are compared using `eql'."
   (loop for x in a
         if (memql x b)
         collect x))
 
 (defun ert-set-difference (a b)
+  "A reimplementation of `set-difference'.  Subtract the set B from the set A.
+
+Elements are compared using `eql'."
   (loop for x in a
         unless (memql x b)
         collect x))
 
 (defun ert-union (a b)
+  "A reimplementation of `union'.  Compute the union of the sets A and B.
+
+Elements are compared using `eql'."
   (append a (ert-set-difference b a)))
 
 (eval-and-compile
@@ -111,6 +123,7 @@
                            (incf ert-gensym-counter))))))
 
 (defun ert-coerce-to-vector (x)
+  "Coerce X to a vector."
   (if (vectorp x)
       x
     (vconcat x)))
@@ -124,6 +137,7 @@
         collect y))
 
 (defun ert-string-position (c s)
+  "Return the position of the first occurrence of C in S, or nil if none."
   (loop for i from 0
         for x across s
         when (eql x c) return i))
@@ -282,6 +296,7 @@ DATA is displayed to the user and should state the reason of the failure."
 (defvar ert-should-execution-observer nil)
 
 (defun ert-signal-should-execution (form-description)
+  "Tell the current `should' form observer (if any) about FORM-DESCRIPTION."
   (when ert-should-execution-observer
     (funcall ert-should-execution-observer form-description)))
 
@@ -293,6 +308,7 @@ DATA is displayed to the user and should state the reason of the failure."
               (eql (cdr (subr-arity definition)) 'unevalled)))))
 
 (defun ert-expand-should-1 (whole form inner-expander)
+  "Helper function for the `should' macro and its variants."
   (let ((form
          ;; If `cl-macroexpand' isn't bound, the code that we're
          ;; compiling doesn't depend on cl and thus doesn't need an
@@ -480,6 +496,7 @@ element of TYPE.  TEST should be a predicate."
    (when (and (not firstp) (eq fast slow)) (return nil))))
 
 (defun ert-explain-format-atom (x)
+  "Format the atom X for `ert-explain-not-equal'."
   (typecase x
     (fixnum (list x (format "#x%x" x) (format "?%c" x)))
     (t x)))
@@ -532,6 +549,7 @@ Returns nil if they are equal."
 ;;; Utility functions for load/unload actions.
 
 (defun ert-activate-font-lock-keywords ()
+  "Activate font-lock keywords for some of ERT's symbols."
   (font-lock-add-keywords
    nil
    '(("(\\(\\<ert-deftest\\)\\>\\s *\\(\\sw+\\)?"
@@ -560,6 +578,7 @@ This can be used as an inverse of `add-to-list'."
 (add-to-list 'emacs-lisp-mode-hook 'ert-activate-font-lock-keywords)
 
 (defun ert-unload-function ()
+  "Unload function to undo the side-effects of loading ert.el."
   (ert-remove-from-list 'find-function-regexp-alist 'ert-deftest :key #'car)
   (ert-remove-from-list 'minor-mode-alist 'ert-current-run-stats :key #'car)
   (ert-remove-from-list 'emacs-lisp-mode-hook 'ert-activate-font-lock-keywords)

@@ -44,7 +44,7 @@
                             (buffer-string)))))))
 
 (defun buffer-contains-p (regexp &optional buffer)
-  "Return true if regexp is found anywhere in BUFFER (default current buffer)."
+  "Return true if REGEXP is found anywhere in BUFFER (default current buffer)."
   (with-current-buffer (or buffer (current-buffer))
     (save-excursion
       (goto-char (point-min))
@@ -55,7 +55,7 @@
 ;; `should-be-correctly-indented' or
 ;; `buffer-contents-after-reindentation', or add an explainer.
 (defun correctly-indented-p (&optional buffer)
-  "Returns true if BUFFER is indented the way Emacs would indent it.
+  "Return true if BUFFER is indented the way Emacs would indent it.
 
 BUFFER defaults to current buffer."
   (with-current-buffer (or buffer (current-buffer))
@@ -71,8 +71,10 @@ BUFFER defaults to current buffer."
           (kill-buffer nil))))))
 
 (defun ert-test-buffer-substitute (string fn)
-  "Removes the all occurrences of STRING in the buffer
-and runs FN with at that point each one is removed.
+  "Remove all occurrences of STRING in current buffer and call FN for each.
+
+Removes the all occurrences of STRING in the buffer and runs FN
+at each point where one is removed.
 
 Backslash-escaped STRINGs are unescaped and ignored."
   (let ((len (length string)))
@@ -86,7 +88,7 @@ Backslash-escaped STRINGs are unescaped and ignored."
             (funcall fn)))))))
 
 (defmacro with-test-buffer (contents &rest body)
-  "Runs BODY in a buffer containing CONTENTS.
+  "In a temporary buffer containing CONTENTS, run BODY.
 
 The mark may be set in the buffer using the string \"<mark>\".
 This can be escaped with a backslash to unclude it literally."

@@ -19,6 +19,12 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see `http://www.gnu.org/licenses/'.
 
+
+;;; Commentary:
+
+;; This file is part of ERT, the Emacs Lisp Regression Testing tool.
+;; See ert.el or the texinfo manual for more details.
+
 ;;; Code:
 
 (eval-when-compile
@@ -37,7 +43,7 @@
   (setq ert-test-body-was-run t))
 
 (defun ert-self-test ()
-  "Runs tests and make sure they actually ran."
+  "Run ERT's self-tests and make sure they actually ran."
   (let ((window-configuration (current-window-configuration)))
     (let ((ert-test-body-was-run nil))
       ;; The buffer name chosen here should not compete with the default
@@ -50,6 +56,10 @@
           (error "ERT self-test failed"))))))
 
 (defun ert-self-test-and-exit ()
+  "Run ERT's self-tests and exit Emacs.
+
+The exit code will be zero if the tests passed, nonzero if they
+failed or if there was a problem."
   (unwind-protect
       (progn
         (ert-self-test)
@@ -133,23 +143,23 @@
         (assert nil nil "Assertion b")))))
 
 (ert-deftest ert-test-error ()
-  (let ((test (make-ert-test :body (lambda () (error "error message")))))
+  (let ((test (make-ert-test :body (lambda () (error "Error message")))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
       (assert (typep result 'ert-test-error) t)
       (assert (equal (ert-test-result-with-condition-condition result)
-                     '(error "error message"))
+                     '(error "Error message"))
               t))))
 
 (ert-deftest ert-test-error-debug ()
-  (let ((test (make-ert-test :body (lambda () (error "error message")))))
+  (let ((test (make-ert-test :body (lambda () (error "Error message")))))
     (condition-case condition
         (progn
           (let ((ert-debug-on-error t))
             (ert-run-test test))
           (assert nil))
       ((error)
-       (assert (equal condition '(error "error message")) t)))))
+       (assert (equal condition '(error "Error message")) t)))))
 
 
 ;;; Test that `should' works.
@@ -207,21 +217,21 @@
                         :value nil
                         :fail-reason "did not signal an error"))))))
   ;; A simple error.
-  (let ((test (make-ert-test :body (lambda () (should-error (error "foo"))))))
+  (let ((test (make-ert-test :body (lambda () (should-error (error "Foo"))))))
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-passed))))
   ;; Error of unexpected type, no test.
   (let ((test (make-ert-test :body (lambda ()
-                                     (should-error (error "foo")
+                                     (should-error (error "Foo")
                                                    :type 'singularity-error)))))
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-failed))
       (should (equal
                (ert-test-result-with-condition-condition result)
                '(ert-test-failed
-                 ((should-error (error "foo") :type 'singularity-error)
-                  :form (error "foo")
-                  :condition (error "foo")
+                 ((should-error (error "Foo") :type 'singularity-error)
+                  :form (error "Foo")
+                  :condition (error "Foo")
                   :fail-reason
                   "the error signalled did not have the expected type"))))))
   ;; Error of the expected type, no test.
@@ -234,20 +244,20 @@
   ;; Error that fails the test, no type.
   (let ((test (make-ert-test :body (lambda ()
                                      (should-error
-                                      (error "foo")
+                                      (error "Foo")
                                       :test (lambda (error) nil))))))
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-failed))
       (should (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed
-                       ((should-error (error "foo") :test (lambda (error) nil))
-                        :form (error "foo")
-                        :condition (error "foo")
+                       ((should-error (error "Foo") :test (lambda (error) nil))
+                        :form (error "Foo")
+                        :condition (error "Foo")
                         :fail-reason
                         "the error signalled did not pass the test"))))))
   ;; Error that passes the test, no type.
   (let ((test (make-ert-test :body (lambda ()
-                                     (should-error (error "foo")
+                                     (should-error (error "Foo")
                                                    :test (lambda (error) t))))))
     (let ((result (ert-run-test test)))
       (should (typep result 'ert-test-passed))))
@@ -337,6 +347,9 @@
     ))
 
 (defmacro ert-test-my-list (&rest args)
+  "Don't use this.  Instead, call `list' with ARGS, it does the same thing.
+
+This macro is used to test if macroexpansion in `should' works."
   `(list ,@args))
 
 (ert-deftest ert-test-should-failure-debugging ()
@@ -356,8 +369,8 @@
             ((should-not (ert-test-my-list x y))
              :form (list t nil)
              :value (t nil))))
-          (,(lambda () (let ((x t)) (should (error "foo"))))
-           (error "foo")))
+          (,(lambda () (let ((x t)) (should (error "Foo"))))
+           (error "Foo")))
         do
         (let ((test (make-ert-test :body body)))
           (condition-case actual-condition
@@ -413,6 +426,14 @@
                        (ert-test-result-messages result)))))))
 
 (defun ert-call-with-buffer-renamed (buffer-name thunk)
+  "Protect the buffer named BUFFER-NAME from side-effects and run THUNK.
+
+Renames the buffer BUFFER-NAME to a new temporary name, creates a
+new buffer named BUFFER-NAME, executes THUNK, kills the new
+buffer, and renames the original buffer back to BUFFER-NAME.
+
+This is useful if THUNK has undesirable side-effects on an Emacs
+buffer with a fixed name such as *Messages*."
   (lexical-let ((new-buffer-name (generate-new-buffer-name
                                   (format "%s orig buffer" buffer-name))))
     (unwind-protect
@@ -426,6 +447,9 @@
         (rename-buffer buffer-name)))))
 
 (defmacro* ert-with-buffer-renamed ((buffer-name-form) &body body)
+  "Protect the buffer named BUFFER-NAME from side-effects and run BODY.
+
+See `ert-call-with-buffer-renamed' for details."
   (declare (indent 1))
   `(ert-call-with-buffer-renamed ,buffer-name-form (lambda () ,@body)))
 
@@ -845,8 +869,6 @@ desired effect."
                    ;; `eql', not `equal'
                    (list y)))))
 
-
-(defun ert-data-for-set-tests ())
 
 (ert-deftest ert-test-set-functions ()
   (let ((c1 (cons nil nil))
