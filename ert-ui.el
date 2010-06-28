@@ -283,14 +283,6 @@ BEGIN and END specify a region in the current buffer."
       (let ((debugger-previous-backtrace nil))
         (debugger-make-xrefs)))))
 
-(defun ert-string-with-properties (s &rest properties)
-  "Return a string like S but with additional text properties PROPERTIES.
-
-S is not changed by this function."
-  (setq s (copy-sequence s))
-  (add-text-properties 0 (length s) properties s)
-  s)
-
 (defun ert-string-first-line (s)
   "Return the first line of S, or S if it contains no newlines.
 
@@ -322,7 +314,7 @@ The return value does not include the line terminator."
            (when (and expandedp (not (eql result 'nil)))
              (when (ert-test-documentation test)
                (insert "    "
-                       (ert-string-with-properties
+                       (propertize
                         (ert-string-first-line (ert-test-documentation test))
                         'font-lock-face 'font-lock-doc-face)
                        "\n"))

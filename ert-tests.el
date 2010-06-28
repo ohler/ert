@@ -960,18 +960,6 @@ desired effect."
   (should (equal (ert-string-first-line "foo\nbar") "foo"))
   (should (equal (ert-string-first-line " foo\nbar\nbaz\n") " foo")))
 
-(ert-deftest ert-string-with-properties ()
-  (should (equal-including-properties (ert-string-with-properties "" 'a 'b) ""))
-  (should (equal-including-properties (ert-string-with-properties "x" 'a 'b)
-                                      #("x" 0 1 (a b))))
-  (should (equal-including-properties
-           (ert-string-with-properties "xy" 'a 'b 'c 'd)
-           #("xy" 0 2 (a b c d))))
-  (let* ((a (ert-string-with-properties "foo" 'foo 'bar))
-         (b (ert-string-with-properties a 'baz 'quux)))
-    (should (equal-including-properties a #("foo" 0 3 (foo bar))))
-    (should (equal-including-properties b #("foo" 0 3 (baz quux foo bar))))))
-
 (ert-deftest ert-test-explain-not-equal ()
   (should (equal (ert-explain-not-equal nil 'foo)
                  '(different-atoms nil foo)))
