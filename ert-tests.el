@@ -974,6 +974,10 @@ desired effect."
   (should (equal (ert-explain-not-equal '(a b c) '(a b c d))
                  '(proper-lists-of-different-length 3 4 (a b c) (a b c d)))))
 
+(ert-deftest ert-test-explain-not-equal-improper-list ()
+  (should (equal (ert-explain-not-equal '(a . b) '(a . c))
+                 '(cdr (different-atoms b c)))))
+
 (provide 'ert-tests)
 
 ;;; ert-tests.el ends here

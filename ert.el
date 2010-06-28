@@ -502,9 +502,10 @@ element of TYPE.  TEST should be a predicate."
     (t x)))
 
 (defun ert-explain-not-equal (a b)
-  "Return a programmer-readable explanation of why A and B are not `equal'.
+  "Explainer function for `equal'.
 
-Returns nil if they are equal."
+Returns a programmer-readable explanation of why A and B are not
+`equal', or nil if they are."
   (if (not (equal (type-of a) (type-of b)))
       `(different-types ,a ,b)
     (etypecase a
@@ -524,21 +525,24 @@ Returns nil if they are equal."
                        for ai in a
                        for bi in b
                        for xi = (ert-explain-not-equal ai bi)
-                       do (when xi (return `(list-elt ,i ,xi)))))
+                       do (when xi (return `(list-elt ,i ,xi)))
+                       finally (assert (equal a b) t)))
              (let ((car-x (ert-explain-not-equal (car a) (car b))))
                (if car-x
                    `(car ,car-x)
                  (let ((cdr-x (ert-explain-not-equal (cdr a) (cdr b))))
                    (if cdr-x
-                       `(cdr ,cdr-x))
-                   nil)))))))
+                       `(cdr ,cdr-x)
+                     (assert (equal a b) t)
+                     nil))))))))
       (array (if (not (equal (length a) (length b)))
                  `(arrays-of-different-length ,a ,b)
                (loop for i from 0
                      for ai across a
                      for bi across b
                      for xi = (ert-explain-not-equal ai bi)
-                     do (when xi (return `(array-elt ,i ,xi))))))
+                     do (when xi (return `(array-elt ,i ,xi)))
+                     finally (assert (equal a b) t))))
       (atom (if (not (equal a b))
                 `(different-atoms ,(ert-explain-format-atom a)
                                   ,(ert-explain-format-atom b))
