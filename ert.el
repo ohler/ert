@@ -104,6 +104,14 @@ Elements are compared using `eql'."
         unless (memql x b)
         collect x))
 
+(defun ert-set-difference-eq (a b)
+  "A reimplementation of `set-difference'.  Subtract the set B from the set A.
+
+Elements are compared using `eq'."
+  (loop for x in a
+        unless (memq x b)
+        collect x))
+
 (defun ert-union (a b)
   "A reimplementation of `union'.  Compute the union of the sets A and B.
 
@@ -548,6 +556,65 @@ Returns a programmer-readable explanation of why A and B are not
                                   ,(ert-explain-format-atom b))
               nil)))))
 (put 'equal 'ert-explainer 'ert-explain-not-equal)
+
+(defun ert-significant-plist-keys (plist)
+  "Return the keys of PLIST that have non-null values, in order."
+  (assert (zerop (mod (length plist) 2)) t)
+  (loop for (key value . rest) on plist by #'cddr
+        unless (or (null value) (memq key accu)) collect key into accu
+        finally (return accu)))
+
+(defun ert-plist-difference-explanation (a b)
+  "Return a programmer-readable explanation of why A and B are different plists.
+
+Returns nil if they are equivalent, i.e., have the same value for
+each key, where absent values are treated as nil.  The order of
+key/value pairs in each list does not matter."
+  (assert (zerop (mod (length a) 2)) t)
+  (assert (zerop (mod (length b) 2)) t)
+  ;; Normalizing the plists would be another way to do this but it
+  ;; requires a total ordering on all lisp objects (since any object
+  ;; is valid as a text property key).  Perhaps defining such an
+  ;; ordering is useful in other contexts, too, but it's a lot of
+  ;; work, so let's punt on it for now.
+  (let* ((keys-a (ert-significant-plist-keys a))
+         (keys-b (ert-significant-plist-keys b))
+         (keys-in-a-not-in-b (ert-set-difference-eq keys-a keys-b))
+         (keys-in-b-not-in-a (ert-set-difference-eq keys-b keys-a)))
+    (flet ((explain-with-key (key)
+             (let ((value-a (plist-get a key))
+                   (value-b (plist-get b key)))
+               (assert (not (equal value-a value-b)) t)
+               `(different-properties-for-key
+                 ,key ,(ert-explain-not-equal value-a value-b)))))
+    (cond (keys-in-a-not-in-b
+           (explain-with-key (first keys-in-a-not-in-b)))
+          (keys-in-b-not-in-a
+           (explain-with-key (first keys-in-b-not-in-a)))
+          (t
+           (loop for key in keys-a
+                 when (not (equal (plist-get a key) (plist-get b key)))
+                 return (explain-with-key key)))))))
+
+(defun ert-explain-not-equal-including-properties (a b)
+  "Explainer function for `equal-including-properties'.
+
+Returns a programmer-readable explanation of why A and B are not
+`equal-including-properties', or nil if they are."
+  (if (not (equal a b))
+      (ert-explain-not-equal a b)
+    (assert (stringp a) t)
+    (assert (stringp b) t)
+    (assert (eql (length a) (length b)) t)
+    (loop for i from 0 to (length a)
+          for props-a = (text-properties-at i a)
+          for props-b = (text-properties-at i b)
+          for difference = (ert-plist-difference-explanation props-a props-b)
+          do (when difference (return `(char ,i ,difference)))
+          finally (assert (equal-including-properties a b) t))))
+(put 'equal-including-properties
+     'ert-explainer
+     'ert-explain-not-equal-including-properties)
 
 
 ;;; Utility functions for load/unload actions.

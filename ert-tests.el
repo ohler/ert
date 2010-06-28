@@ -887,6 +887,17 @@ desired effect."
       (should (equal (ert-set-difference a b) (list 'a nil "" "x" c2)))
       (should (equal (ert-set-difference b a) (list 'y 'x)))
 
+      ;; We aren't testing whether this is really using `eq' rather than `eql'.
+      (should (equal (ert-set-difference-eq e e) e))
+      (should (equal (ert-set-difference-eq a e) a))
+      (should (equal (ert-set-difference-eq e a) e))
+      (should (equal (ert-set-difference-eq a a) e))
+      (should (equal (ert-set-difference-eq b e) b))
+      (should (equal (ert-set-difference-eq e b) e))
+      (should (equal (ert-set-difference-eq b b) e))
+      (should (equal (ert-set-difference-eq a b) (list 'a nil "" "x" c2)))
+      (should (equal (ert-set-difference-eq b a) (list 'y 'x)))
+
       (should (equal (ert-union e e) e))
       (should (equal (ert-union a e) a))
       (should (equal (ert-union e a) a))
@@ -977,6 +988,38 @@ desired effect."
 (ert-deftest ert-test-explain-not-equal-improper-list ()
   (should (equal (ert-explain-not-equal '(a . b) '(a . c))
                  '(cdr (different-atoms b c)))))
+
+(ert-deftest ert-test-significant-plist-keys ()
+  (should (equal (ert-significant-plist-keys '()) '()))
+  (should (equal (ert-significant-plist-keys '(a b c d e f c g p q r nil s t))
+                 '(a c e p s))))
+
+(ert-deftest ert-test-plist-difference-explanation ()
+  (should (equal (ert-plist-difference-explanation
+                  '(a b c nil) '(a b))
+                 nil))
+  (should (equal (ert-plist-difference-explanation
+                  '(a b c t) '(a b))
+                 '(different-properties-for-key c (different-atoms t nil))))
+  (should (equal (ert-plist-difference-explanation
+                  '(a b c (foo . bar)) '(c (foo . baz) a b))
+                 '(different-properties-for-key c (cdr
+                                                   (different-atoms bar baz))))))
+
+(ert-deftest ert-test-explain-not-equal-string-properties ()
+  (should
+   (equal (ert-explain-not-equal-including-properties #("foo" 0 1 (a b))
+                                                      "foo")
+          '(char 0 (different-properties-for-key a (different-atoms b nil)))))
+  (should (equal (ert-explain-not-equal-including-properties #("foo" 1 3 (a b))
+                                                             #("goo" 0 1 (c d)))
+                 '(array-elt 0 (different-atoms (?f "#x66" "?f")
+                                                (?g "#x67" "?g")))))
+  (should
+   (equal (ert-explain-not-equal-including-properties
+           #("foo" 0 1 (a b c d) 1 3 (a b))
+           #("foo" 0 1 (c d a b) 1 2 (a foo)))
+          '(char 1 (different-properties-for-key a (different-atoms b foo))))))
 
 (provide 'ert-tests)
 
