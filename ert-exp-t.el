@@ -92,6 +92,84 @@
     (should (string-equal (buffer-string) "Foo BAR baz"))))
 
 
+(ert-deftest ert-filter-string ()
+  (should (equal (ert-filter-string "foo bar baz" "quux")
+                 "foo bar baz"))
+  (should (equal (ert-filter-string "foo bar baz" "bar")
+                 "foo  baz")))
+
+(ert-deftest ert-propertized-string ()
+  (should (equal-including-properties
+           (ert-propertized-string "a" '(a b) "b" '(a nil c t) "cd")
+           #("abcd" 1 2 (a b) 2 4 (c t))))
+  (should (equal-including-properties
+           (ert-propertized-string "foo "
+                                   '(face italic) "bar" '(face nil)
+                                   " baz")
+           #("foo bar baz" 4 7 (face italic)))))
+
+
+;;; Tests for ERT itself that require test features from ert-exp.el.
+
+(ert-deftest ert-test-x-run-tests-interactively ()
+  :tags '(:causes-redisplay)
+  (let ((passing-test (make-ert-test :name 'passing-test
+                                     :body (lambda () (ert-pass))))
+        (failing-test (make-ert-test :name 'failing-test
+                                     :body (lambda () (ert-fail
+                                                       "failure message")))))
+    (let ((ert-debug-on-error nil))
+      (let* ((buffer-name (generate-new-buffer-name " *ert-test-run-tests*"))
+             (messages nil)
+             (mock-message-fn
+              (lambda (format-string &rest args)
+                (push (apply #'format format-string args) messages))))
+        (save-window-excursion
+          (unwind-protect
+              (let ((case-fold-search nil))
+                (ert-run-tests-interactively
+                 `(member ,passing-test ,failing-test) buffer-name
+                 mock-message-fn)
+                (should (equal messages `(,(concat
+                                            "Ran 2 tests, 1 results were "
+                                            "as expected, 1 unexpected"))))
+                (with-current-buffer buffer-name
+                  (should (ert-equal-including-properties
+                           (ert-filter-string (buffer-string)
+                                              '("Started at:\\(.*\\)$" 1)
+                                              '("Finished at:\\(.*\\)$" 1))
+                           (ert-propertized-string
+                            "Selector: (member <passing-test> <failing-test>)\n"
+                            "Passed: 1\n"
+                            "Failed: 1 (1 unexpected)\n"
+                            "Error:  0\n"
+                            "Total:  2/2\n\n"
+                            "Started at:\n"
+                            "Finished.\n"
+                            "Finished at:\n\n"
+                            `(category ,(button-category-symbol
+                                         'ert-results-progress-bar-button)
+                                       button (t))
+                            ".F"
+                            '(category nil button nil)
+                            "\n\n"
+                            `(category ,(button-category-symbol
+                                         'ert-results-expand-collapse-button)
+                                       button (t))
+                            "F"
+                            '(category nil button nil)
+                            " "
+                            `(category ,(button-category-symbol
+                                         'ert-test-name-button)
+                                       button (t)
+                                       ert-test-name failing-test)
+                            "failing-test"
+                            '(category nil button nil ert-test-name nil)
+                            "\n    (ert-test-failed \"failure message\")\n\n\n"
+                            )))))
+            (when (get-buffer buffer-name)
+              (kill-buffer buffer-name))))))))
+
 (provide 'ert-exp-t)
 
 ;;; ert-exp-t.el ends here

@@ -132,6 +132,7 @@ Elements are compared using `eql'."
 
 (defun ert-coerce-to-vector (x)
   "Coerce X to a vector."
+  (when (char-table-p x) (error "Not supported"))
   (if (vectorp x)
       x
     (vconcat x)))
@@ -150,6 +151,54 @@ Elements are compared using `eql'."
         for x across s
         when (eql x c) return i))
 
+(defun ert-mismatch (a b)
+  "Return index of first element that differs between A and B.
+
+Like `mismatch'.  Uses `equal' for comparison."
+  (cond ((or (listp a) (listp b))
+         (ert-mismatch (ert-coerce-to-vector a)
+                       (ert-coerce-to-vector b)))
+        ((> (length a) (length b))
+         (ert-mismatch b a))
+        (t
+         (let ((la (length a))
+               (lb (length b)))
+           (assert (arrayp a) t)
+           (assert (arrayp b) t)
+           (assert (<= la lb) t)
+           (loop for i below la
+                 when (not (equal (aref a i) (aref b i))) return i
+                 finally (return (if (/= la lb)
+                                     la
+                                   (assert (equal a b) t)
+                                   nil)))))))
+
+(defun ert-subseq (seq start &optional end)
+  "Returns a subsequence of SEQ from START to END."
+  (when (char-table-p seq) (error "Not supported"))
+  (let ((vector (substring (ert-coerce-to-vector seq) start end)))
+    (etypecase seq
+      (vector vector)
+      (string (concat vector))
+      (list (append vector nil))
+      (bool-vector (loop with result = (make-bool-vector (length vector) nil)
+                         for i below (length vector) do
+                         (setf (aref result i) (aref vector i))
+                         finally (return result)))
+      (char-table (assert nil)))))
+
+(defun ert-equal-including-properties (a b)
+  "Return t if A and B have similar structure and contents.
+
+This is like `equal-including-properties' except that it compares
+the property values of text properties structurally (by
+recursing) rather than with `eq'.  Perhaps this is what
+`equal-including-properties' should do in the first place; see
+Emacs bug 6581 at URL `http://debbugs.gnu.org/cgi/bugreport.cgi?bug=6581'."
+  ;; This implementation is inefficient.  Rather than making it
+  ;; efficient, let's hope bug 6581 gets fixed so that we can delete
+  ;; it altogether.
+  (not (ert-explain-not-equal-including-properties a b)))
 
 ;;; Defining and locating tests.
 
@@ -524,11 +573,10 @@ Returns a programmer-readable explanation of why A and B are not
              `(one-list-proper-one-improper ,a ,b)
            (if a-proper-p
                (if (not (equal (length a) (length b)))
-                   ;; This would be even more helpful if it showed
-                   ;; something like what `set-difference' would
-                   ;; return.
                    `(proper-lists-of-different-length ,(length a) ,(length b)
-                                                      ,a ,b)
+                                                      ,a ,b
+                                                      first-mismatch-at
+                                                      ,(ert-mismatch a b))
                  (loop for i from 0
                        for ai in a
                        for bi in b
@@ -544,7 +592,11 @@ Returns a programmer-readable explanation of why A and B are not
                      (assert (equal a b) t)
                      nil))))))))
       (array (if (not (equal (length a) (length b)))
-                 `(arrays-of-different-length ,a ,b)
+                 `(arrays-of-different-length ,(length a) ,(length b)
+                                              ,a ,b
+                                              ,@(unless (char-table-p a)
+                                                  `(first-mismatch-at
+                                                    ,(ert-mismatch a b))))
                (loop for i from 0
                      for ai across a
                      for bi across b
@@ -552,8 +604,10 @@ Returns a programmer-readable explanation of why A and B are not
                      do (when xi (return `(array-elt ,i ,xi)))
                      finally (assert (equal a b) t))))
       (atom (if (not (equal a b))
-                `(different-atoms ,(ert-explain-format-atom a)
-                                  ,(ert-explain-format-atom b))
+                (if (and (symbolp a) (symbolp b) (string= a b))
+                    `(different-symbols-with-the-same-name ,a ,b)
+                 `(different-atoms ,(ert-explain-format-atom a)
+                                   ,(ert-explain-format-atom b)))
               nil)))))
 (put 'equal 'ert-explainer 'ert-explain-not-equal)
 
@@ -596,11 +650,23 @@ key/value pairs in each list does not matter."
                  when (not (equal (plist-get a key) (plist-get b key)))
                  return (explain-with-key key)))))))
 
+(defun ert-abbreviate-string (s len suffixp)
+  "Shorten string S to at most LEN chars.
+
+If SUFFIXP is non-nil, returns a suffix of S, otherwise a prefix."
+  (let ((n (length s)))
+    (cond ((< n len)
+           s)
+          (suffixp
+           (substring s (- n len)))
+          (t
+           (substring s 0 len)))))
+
 (defun ert-explain-not-equal-including-properties (a b)
-  "Explainer function for `equal-including-properties'.
+  "Explainer function for `ert-equal-including-properties'.
 
 Returns a programmer-readable explanation of why A and B are not
-`equal-including-properties', or nil if they are."
+`ert-equal-including-properties', or nil if they are."
   (if (not (equal a b))
       (ert-explain-not-equal a b)
     (assert (stringp a) t)
@@ -610,9 +676,23 @@ Returns a programmer-readable explanation of why A and B are not
           for props-a = (text-properties-at i a)
           for props-b = (text-properties-at i b)
           for difference = (ert-plist-difference-explanation props-a props-b)
-          do (when difference (return `(char ,i ,difference)))
-          finally (assert (equal-including-properties a b) t))))
-(put 'equal-including-properties
+          do (when difference
+               (return `(char ,i ,(substring-no-properties a i (1+ i))
+                              ,difference
+                              context-before
+                              ,(ert-abbreviate-string
+                                (substring-no-properties a 0 i)
+                                10 t)
+                              context-after
+                              ,(ert-abbreviate-string
+                                (substring-no-properties a (1+ i))
+                                10 nil))))
+          ;; TODO(ohler): Get `equal-including-properties' fixed in
+          ;; Emacs, delete `ert-equal-including-properties', and
+          ;; re-enable this assertion.
+          ;;finally (assert (equal-including-properties a b) t)
+          )))
+(put 'ert-equal-including-properties
      'ert-explainer
      'ert-explain-not-equal-including-properties)
 

@@ -639,8 +639,7 @@ See `ert-call-with-buffer-renamed' for details."
                                      :body (lambda () (ert-pass))))
         (failing-test (make-ert-test :name 'failing-test
                                      :body (lambda () (ert-fail
-                                                       "failure message"))))
-        )
+                                                       "failure message")))))
     (let ((ert-debug-on-error nil))
       (let* ((buffer-name (generate-new-buffer-name " *ert-test-run-tests*"))
              (messages nil)
@@ -953,6 +952,14 @@ desired effect."
   (should (eql (ert-string-position ?d "abc") nil))
   (should (eql (ert-string-position ?A "abc") nil)))
 
+(ert-deftest ert-mismatch ()
+  (should (eql (ert-mismatch "" "") nil))
+  (should (eql (ert-mismatch "" "a") 0))
+  (should (eql (ert-mismatch "a" "a") nil))
+  (should (eql (ert-mismatch "ab" "a") 1))
+  (should (eql (ert-mismatch "Aa" "aA") 0))
+  (should (eql (ert-mismatch '(a b c) '(a b d)) 2)))
+
 (ert-deftest ert-test-string-first-line ()
   (should (equal (ert-string-first-line "") ""))
   (should (equal (ert-string-first-line "abc") "abc"))
@@ -971,7 +978,11 @@ desired effect."
   (should (equal (ert-explain-not-equal 'nil '(a))
                  '(different-types nil (a))))
   (should (equal (ert-explain-not-equal '(a b c) '(a b c d))
-                 '(proper-lists-of-different-length 3 4 (a b c) (a b c d)))))
+                 '(proper-lists-of-different-length 3 4 (a b c) (a b c d)
+                                                    first-mismatch-at 3)))
+  (let ((sym (make-symbol "a")))
+    (should (equal (ert-explain-not-equal 'a sym)
+                   `(different-symbols-with-the-same-name a ,sym)))))
 
 (ert-deftest ert-test-explain-not-equal-improper-list ()
   (should (equal (ert-explain-not-equal '(a . b) '(a . c))
@@ -990,15 +1001,35 @@ desired effect."
                   '(a b c t) '(a b))
                  '(different-properties-for-key c (different-atoms t nil))))
   (should (equal (ert-plist-difference-explanation
+                  '(a b c t) '(c nil a b))
+                 '(different-properties-for-key c (different-atoms t nil))))
+  (should (equal (ert-plist-difference-explanation
                   '(a b c (foo . bar)) '(c (foo . baz) a b))
                  '(different-properties-for-key c (cdr
                                                    (different-atoms bar baz))))))
+
+(ert-deftest ert-test-abbreviate-string ()
+  (should (equal (ert-abbreviate-string "foo" 4 nil) "foo"))
+  (should (equal (ert-abbreviate-string "foo" 3 nil) "foo"))
+  (should (equal (ert-abbreviate-string "foo" 3 nil) "foo"))
+  (should (equal (ert-abbreviate-string "foo" 2 nil) "fo"))
+  (should (equal (ert-abbreviate-string "foo" 1 nil) "f"))
+  (should (equal (ert-abbreviate-string "foo" 0 nil) ""))
+  (should (equal (ert-abbreviate-string "bar" 4 t) "bar"))
+  (should (equal (ert-abbreviate-string "bar" 3 t) "bar"))
+  (should (equal (ert-abbreviate-string "bar" 3 t) "bar"))
+  (should (equal (ert-abbreviate-string "bar" 2 t) "ar"))
+  (should (equal (ert-abbreviate-string "bar" 1 t) "r"))
+  (should (equal (ert-abbreviate-string "bar" 0 t) "")))
 
 (ert-deftest ert-test-explain-not-equal-string-properties ()
   (should
    (equal (ert-explain-not-equal-including-properties #("foo" 0 1 (a b))
                                                       "foo")
-          '(char 0 (different-properties-for-key a (different-atoms b nil)))))
+          '(char 0 "f"
+                 (different-properties-for-key a (different-atoms b nil))
+                 context-before ""
+                 context-after "oo")))
   (should (equal (ert-explain-not-equal-including-properties #("foo" 1 3 (a b))
                                                              #("goo" 0 1 (c d)))
                  '(array-elt 0 (different-atoms (?f "#x66" "?f")
@@ -1007,7 +1038,33 @@ desired effect."
    (equal (ert-explain-not-equal-including-properties
            #("foo" 0 1 (a b c d) 1 3 (a b))
            #("foo" 0 1 (c d a b) 1 2 (a foo)))
-          '(char 1 (different-properties-for-key a (different-atoms b foo))))))
+          '(char 1 "o" (different-properties-for-key a (different-atoms b foo))
+                 context-before "f" context-after "o"))))
+
+(ert-deftest ert-test-equal-including-properties ()
+  (should (equal-including-properties "foo" "foo"))
+  (should (ert-equal-including-properties "foo" "foo"))
+
+  (should (equal-including-properties #("foo" 0 3 (a b))
+                                      (propertize "foo" 'a 'b)))
+  (should (ert-equal-including-properties #("foo" 0 3 (a b))
+                                          (propertize "foo" 'a 'b)))
+
+  (should (equal-including-properties #("foo" 0 3 (a b c d))
+                                      (propertize "foo" 'a 'b 'c 'd)))
+  (should (ert-equal-including-properties #("foo" 0 3 (a b c d))
+                                          (propertize "foo" 'a 'b 'c 'd)))
+
+  (should-not (equal-including-properties #("foo" 0 3 (a b c e))
+                                          (propertize "foo" 'a 'b 'c 'd)))
+  (should-not (ert-equal-including-properties #("foo" 0 3 (a b c e))
+                                              (propertize "foo" 'a 'b 'c 'd)))
+
+  ;; This is bug 6581.
+  (should-not (equal-including-properties #("foo" 0 3 (a (t)))
+                                          (propertize "foo" 'a (list t))))
+  (should (ert-equal-including-properties #("foo" 0 3 (a (t)))
+                                          (propertize "foo" 'a (list t)))))
 
 (provide 'ert-tests)
 

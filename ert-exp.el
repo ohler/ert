@@ -294,6 +294,63 @@ Run the hook `ert-simulate-command-post-hook' at the very end."
     return-value))
 
 
+(defun ert-filter-string (s &rest regexps)
+  "Return a copy of S with all matches of REGEXPS removed.
+
+Elements of REGEXPS may also be two-element lists \(REGEXP
+SUBEXP\), where SUBEXP is the number of a subexpression in
+REGEXP.  In that case, only that subexpression will be removed
+rather than the entire match."
+  ;; Use a temporary buffer since replace-match copies strings, which
+  ;; would lead to N^2 runtime.
+  (with-temp-buffer
+    (insert s)
+    (dolist (x regexps)
+      (destructuring-bind (regexp subexp) (if (listp x) x `(,x nil))
+        (goto-char (point-min))
+        (while (re-search-forward regexp nil t)
+          (replace-match "" t t nil subexp))))
+    (buffer-string)))
+
+
+(defun ert-propertized-string (&rest args)
+  "Return a string with properties as specified by ARGS.
+
+ARGS is a list of strings and plists.  It is processed from left
+to right to produce the output string.  Each string in ARGS is
+inserted with properties that are determined by the preceding
+plists in ARGS: It is inserted with properties that are the
+combination of all plists that preceded it, where the rightmost
+plist's value wins if multiple elements specify a value for the
+same key, and plist keys with nil values are dropped.
+
+As a simple example,
+
+\(ert-propertized-string \"foo \" '(face italic) \"bar\" '(face nil) \" baz\"\)
+
+would return the string \"foo bar baz\" where the substring
+\"bar\" has the property face=italic.
+
+None of the ARGS are modified."
+  (with-temp-buffer
+    (loop with plist-holder =
+          ;; hacky but we don't have cl
+          (make-symbol "plist-holder")
+          for x in args do
+          (etypecase x
+            (string (let ((begin (point)))
+                      (insert x)
+                      (set-text-properties begin (point)
+                                           (copy-sequence
+                                            (symbol-plist plist-holder)))))
+            (list (unless (zerop (mod (length x) 2))
+                    (error "Odd number of args in plist: %S" x))
+                  (loop for (key value . rest) on x by #'cddr do
+                        (ert-remprop plist-holder key)
+                        (unless (null value)
+                          (put plist-holder key value))))))
+    (buffer-string)))
+
 (provide 'ert-exp)
 
 ;;; ert-exp.el ends here
