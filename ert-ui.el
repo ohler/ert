@@ -718,16 +718,13 @@ To be used in the ERT results buffer."
 
 (defun ert-test-at-point ()
   "Return the name of the test at point as a symbol, or nil if none."
-  (block nil
-    (when (eql major-mode 'ert-results-mode)
-      (let ((test (ert--results-test-at-point-no-redefinition)))
-        (when (and test (ert-test-name test))
-          (return (ert-test-name test)))))
-    (let ((thing (thing-at-point 'symbol)))
-      (let ((sym (intern-soft thing)))
-        (when (ert-test-boundp sym)
-          (return sym))))
-    (return nil)))
+  (or (and (eql major-mode 'ert-results-mode)
+           (let ((test (ert--results-test-at-point-no-redefinition)))
+             (and test (ert-test-name test))))
+      (let* ((thing (thing-at-point 'symbol))
+             (sym (intern-soft thing)))
+        (and (ert-test-boundp sym)
+             sym))))
 
 (defun ert--results-test-at-point-no-redefinition ()
   "Return the test at point, or nil.
