@@ -534,7 +534,7 @@ See `ert-call-with-buffer-renamed' for details."
     (should (ert-test-result-expected-p test (ert-run-test test))))
   (let ((test (make-ert-test :body (lambda ())
                              :expected-result-type '(or (and :passed :failed)
-                                                   nil (not t)))))
+                                                        nil (not t)))))
     (should-not (ert-test-result-expected-p test (ert-run-test test)))))
 
 ;;; Test `ert-select-tests'.
@@ -738,8 +738,8 @@ desired effect."
              (ert-with-buffer-renamed ("*Messages*")
                (let ((message-log-max x))
                  (body))
-                (with-current-buffer "*Messages*"
-                  (buffer-string))))
+               (with-current-buffer "*Messages*"
+                 (buffer-string))))
            ;; Uses our lisp reimplementation.
            (lisp (x)
              (ert-with-buffer-renamed ("*Messages*")
@@ -827,10 +827,10 @@ desired effect."
   (let ((list (list 'a 'b 'c 'd))
         (i 0))
     (let ((result (ert--remove-if-not (lambda (x)
-                                       (should (eql x (nth i list)))
-                                       (incf i)
-                                       (member i '(2 3)))
-                                     list)))
+                                        (should (eql x (nth i list)))
+                                        (incf i)
+                                        (member i '(2 3)))
+                                      list)))
       (should (equal i 4))
       (should (equal result '(b c)))
       (should (equal list '(a b c d)))))
@@ -843,18 +843,18 @@ desired effect."
         (test-index 0))
     (let ((result
            (ert--remove* 'foo list
-                        :key (lambda (x)
-                               (should (eql x (nth key-index list)))
-                               (prog1
-                                   (list key-index x)
-                                 (incf key-index)))
-                        :test
-                        (lambda (a b)
-                          (should (eql a 'foo))
-                          (should (equal b (list test-index
-                                                 (nth test-index list))))
-                          (incf test-index)
-                          (member test-index '(2 3))))))
+                         :key (lambda (x)
+                                (should (eql x (nth key-index list)))
+                                (prog1
+                                    (list key-index x)
+                                  (incf key-index)))
+                         :test
+                         (lambda (a b)
+                           (should (eql a 'foo))
+                           (should (equal b (list test-index
+                                                  (nth test-index list))))
+                           (incf test-index)
+                           (member test-index '(2 3))))))
       (should (equal key-index 4))
       (should (equal test-index 4))
       (should (equal result '(a d)))
@@ -1025,13 +1025,13 @@ desired effect."
 (ert-deftest ert-test-explain-not-equal-string-properties ()
   (should
    (equal (ert--explain-not-equal-including-properties #("foo" 0 1 (a b))
-                                                      "foo")
+                                                       "foo")
           '(char 0 "f"
                  (different-properties-for-key a (different-atoms b nil))
                  context-before ""
                  context-after "oo")))
   (should (equal (ert--explain-not-equal-including-properties #("foo" 1 3 (a b))
-                                                             #("goo" 0 1 (c d)))
+                                                              #("goo" 0 1 (c d)))
                  '(array-elt 0 (different-atoms (?f "#x66" "?f")
                                                 (?g "#x67" "?g")))))
   (should

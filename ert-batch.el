@@ -85,7 +85,7 @@ Returns the stats object."
              (message "Test %S backtrace:" (ert-test-name test))
              (with-temp-buffer
                (ert--print-backtrace (ert-test-result-with-condition-backtrace
-                                     result))
+                                      result))
                (goto-char (point-min))
                (while (not (eobp))
                  (let ((start (point))

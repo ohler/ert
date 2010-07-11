@@ -382,10 +382,10 @@ contained in UNIVERSE."
        ((member t) (mapcar #'ert-get-test
                            (apropos-internal selector #'ert-test-boundp)))
        (list (ert--remove-if-not (lambda (test)
-                                  (and (ert-test-name test)
-                                       (string-match selector
-                                                     (ert-test-name test))))
-                                universe))))
+                                   (and (ert-test-name test)
+                                        (string-match selector
+                                                      (ert-test-name test))))
+                                 universe))))
     (ert-test (list selector))
     (symbol
      (assert (ert-test-boundp selector))
@@ -415,24 +415,24 @@ contained in UNIVERSE."
           (assert (eql (length operands) 1))
           (let ((all-tests (ert-select-tests 't universe)))
             (ert--set-difference all-tests
-                                (ert-select-tests (first operands) all-tests))))
+                                 (ert-select-tests (first operands) all-tests))))
          (or
           (case (length operands)
             (0 (ert-select-tests 'nil universe))
             (t (ert--union (ert-select-tests (first operands) universe)
-                          (ert-select-tests `(or ,@(rest operands))
-                                            universe)))))
+                           (ert-select-tests `(or ,@(rest operands))
+                                             universe)))))
          (tag
           (assert (eql (length operands) 1))
           (let ((tag (first operands)))
             (ert-select-tests `(satisfies
                                 ,(lambda (test)
                                    (member tag (ert-test-tags test))))
-                            universe)))
+                              universe)))
          (satisfies
           (assert (eql (length operands) 1))
           (ert--remove-if-not (first operands)
-                             (ert-select-tests 't universe))))))))
+                              (ert-select-tests 't universe))))))))
 
 (defun ert--insert-human-readable-selector (selector)
   "Insert a human-readable presentation of SELECTOR into the current buffer."

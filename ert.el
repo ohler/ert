@@ -157,7 +157,7 @@ Elements are compared using `eql'."
 Like `mismatch'.  Uses `equal' for comparison."
   (cond ((or (listp a) (listp b))
          (ert--mismatch (ert--coerce-to-vector a)
-                       (ert--coerce-to-vector b)))
+                        (ert--coerce-to-vector b)))
         ((> (length a) (length b))
          (ert--mismatch b a))
         (t
@@ -449,21 +449,21 @@ FORM-DESCRIPTION-FORM before it has called INNER-FORM."
 
 Returns the value of FORM."
   (ert--expand-should `(should ,form) form
-                     (lambda (inner-form form-description-form)
-                       `(unless ,inner-form
-                          (ert-fail ,form-description-form)))))
+                      (lambda (inner-form form-description-form)
+                        `(unless ,inner-form
+                           (ert-fail ,form-description-form)))))
 
 (defmacro* should-not (form)
   "Evaluate FORM.  If it returns non-nil, abort the current test as failed.
 
 Returns nil."
   (ert--expand-should `(should-not ,form) form
-                     (lambda (inner-form form-description-form)
-                       `(unless (not ,inner-form)
-                          (ert-fail ,form-description-form)))))
+                      (lambda (inner-form form-description-form)
+                        `(unless (not ,inner-form)
+                           (ert-fail ,form-description-form)))))
 
 (defun ert--should-error-handle-error (form-description-fn
-                                      condition type exclude-subtypes test)
+                                       condition type exclude-subtypes test)
   "Helper function for `should-error'.
 
 Determines whether CONDITION matches TYPE, EXCLUDE-SUBTYPES and
@@ -524,8 +524,8 @@ element of TYPE.  TEST should be a predicate."
             (error
              (setq ,errorp t)
              (ert--should-error-handle-error ,form-description-fn
-                                            -condition-
-                                            ,type ,exclude-subtypes ,test)
+                                             -condition-
+                                             ,type ,exclude-subtypes ,test)
              ;; It would make sense to have the `should-error' form
              ;; return the error in this case, but `ert--expand-should'
              ;; doesn't allow that at the moment.
@@ -605,8 +605,8 @@ Returns a programmer-readable explanation of why A and B are not
       (atom (if (not (equal a b))
                 (if (and (symbolp a) (symbolp b) (string= a b))
                     `(different-symbols-with-the-same-name ,a ,b)
-                 `(different-atoms ,(ert--explain-format-atom a)
-                                   ,(ert--explain-format-atom b)))
+                  `(different-atoms ,(ert--explain-format-atom a)
+                                    ,(ert--explain-format-atom b)))
               nil)))))
 (put 'equal 'ert-explainer 'ert--explain-not-equal)
 
@@ -641,14 +641,14 @@ key/value pairs in each list does not matter."
                `(different-properties-for-key
                  ,key ,(ert--explain-not-equal-including-properties value-a
                                                                     value-b)))))
-    (cond (keys-in-a-not-in-b
-           (explain-with-key (first keys-in-a-not-in-b)))
-          (keys-in-b-not-in-a
-           (explain-with-key (first keys-in-b-not-in-a)))
-          (t
-           (loop for key in keys-a
-                 when (not (equal (plist-get a key) (plist-get b key)))
-                 return (explain-with-key key)))))))
+      (cond (keys-in-a-not-in-b
+             (explain-with-key (first keys-in-a-not-in-b)))
+            (keys-in-b-not-in-a
+             (explain-with-key (first keys-in-b-not-in-a)))
+            (t
+             (loop for key in keys-a
+                   when (not (equal (plist-get a key) (plist-get b key)))
+                   return (explain-with-key key)))))))
 
 (defun ert--abbreviate-string (s len suffixp)
   "Shorten string S to at most LEN chars.
@@ -715,9 +715,9 @@ This can be used as an inverse of `add-to-list'."
   (unless test (setq test #'equal))
   (setf (symbol-value list-var)
         (ert--remove* element
-                     (symbol-value list-var)
-                     :key key
-                     :test test)))
+                      (symbol-value list-var)
+                      :key key
+                      :test test)))
 
 
 ;;; Actions on load/unload.

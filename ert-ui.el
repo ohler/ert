@@ -360,7 +360,7 @@ RESULT can either be a test result object or one of the symbols
                                                                     result)))
                                :type 'ert--results-expand-collapse-button
                                'face (or (and font-lock-mode
-                                         (ert-face-for-test-result result))
+                                              (ert-face-for-test-result result))
                                          'button))
            (insert " ")
            (ert-insert-test-name-button (ert-test-name test))
@@ -470,8 +470,8 @@ and how to display message."
               (run-started
                (destructuring-bind (stats) event-args
                  (setq buffer (ert--setup-results-buffer stats
-                                                        listener
-                                                        output-buffer-name))
+                                                         listener
+                                                         output-buffer-name))
                  (pop-to-buffer buffer)))
               (run-ended
                (destructuring-bind (stats abortedp) event-args
@@ -488,8 +488,8 @@ and how to display message."
                                 ""
                               (format ", %s unexpected" unexpected))))
                  (ert--results-update-stats-display (with-current-buffer buffer
-                                                     ert--results-ewoc)
-                                                   stats)))
+                                                      ert--results-ewoc)
+                                                    stats)))
               (test-started
                (destructuring-bind (stats test) event-args
                  (with-current-buffer buffer
@@ -795,7 +795,7 @@ definition."
      (aref (ert--stats-tests stats) test-index) new-test
      (aref (ert--stats-test-results stats) test-index) nil
      (aref ert--results-progress-bar-string test-index) (ert-char-for-test-result
-                                                        nil t))
+                                                         nil t))
     (remhash (or (ert-test-name old-test) old-test) (ert--stats-test-map stats))
     (setf (gethash (or (ert-test-name new-test) new-test)
                    (ert--stats-test-map stats))

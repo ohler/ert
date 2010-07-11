@@ -49,7 +49,7 @@
     (save-excursion
       (goto-char (point-min))
       (not (not (search-forward-regexp regexp nil t))))))
-  
+
 ;; TODO(ohler): modify this to allow better error reporting in the
 ;; case of failure, e.g., by changing it to
 ;; `should-be-correctly-indented' or
