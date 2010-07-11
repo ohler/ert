@@ -214,14 +214,10 @@ Also sets `ert-results-progress-bar-button-begin'."
                 (ert-format-time-iso8601 (ert-stats-start-time stats))))
        ;; FIXME: This is ugly.  Need to properly define invariants of
        ;; the `stats' data structure.
-       (let ((state (cond ((ert-stats-aborted-p stats)
-                           'aborted)
-                          ((ert-stats-current-test stats)
-                           'running)
-                          ((ert-stats-end-time stats)
-                           'finished)
-                          (t
-                           'preparing))))
+       (let ((state (cond ((ert-stats-aborted-p stats) 'aborted)
+                          ((ert-stats-current-test stats) 'running)
+                          ((ert-stats-end-time stats) 'finished)
+                          (t 'preparing))))
          (ecase state
            (preparing
             (insert ""))
@@ -270,7 +266,9 @@ Also sets `ert-results-progress-bar-button-begin'."
      ;; footer
      ;;
      ;; We actually want an empty footer, but that would trigger a bug
-     ;; in ewoc, sometimes clearing the entire buffer.
+     ;; in ewoc, sometimes clearing the entire buffer.  (It's possible
+     ;; that this bug has been fixed since this has been tested; we
+     ;; should test it again.)
      "\n")))
 
 
@@ -550,12 +548,13 @@ and how to display message."
 
 (loop for (key binding) in
       '(;; Stuff that's not in the menu.
-        ;; TODO(ohler): Make n and p navigate up and down.
         ("\t" forward-button)
         ([backtab] backward-button)
         ("j" ert-results-jump-between-summary-and-result)
         ("q" quit-window)
         ("L" ert-results-toggle-printer-limits-for-test-at-point)
+        ("n" ert-results-next-test)
+        ("p" ert-results-previous-test)
         ;; Stuff that is in the menu.
         ("r" ert-results-rerun-test-at-point)
         ("d" ert-results-rerun-test-at-point-debugging-errors)
@@ -623,6 +622,34 @@ To be used in the ERT results buffer."
 To be used in the ERT results buffer."
   (or (ert-results-test-node-or-null-at-point)
       (error "No test at point")))
+
+(defun ert-results-next-test ()
+  "Move point to the next test.
+
+To be used in the ERT results buffer."
+  (interactive)
+  (ert-results-move (ewoc-locate ert-results-ewoc) 'ewoc-next "No tests below"))
+
+(defun ert-results-previous-test ()
+  "Move point to the previous test.
+
+To be used in the ERT results buffer."
+  (interactive)
+  (ert-results-move (ewoc-locate ert-results-ewoc) 'ewoc-prev "No tests above"))
+
+(defun ert-results-move (node ewoc-fn error-message)
+  "Move point from NODE to the previous or next node.
+
+EWOC-FN specifies the direction and should be either `ewoc-prev'
+or `ewoc-next'.  If there are no more nodes in that direction, an
+error is signalled with the message ERROR-MESSAGE."
+  (loop
+   (setq node (funcall ewoc-fn ert-results-ewoc node))
+   (when (null node)
+     (error "%s" error-message))
+   (unless (ert-ewoc-entry-hidden-p (ewoc-data node))
+     (goto-char (ewoc-location node))
+     (return))))
 
 (defun ert-results-expand-collapse-button-action (button)
   "Expand or collapse the test node BUTTON belongs to."
