@@ -42,25 +42,18 @@
   :prefix "ert-"
   :group 'lisp)
 
-(defface ert-test-passed '((((class color) (background light))
-                            :background "green1")
-                           (((class color) (background dark))
-                            :background "green3"))
-  "Face used for passed tests in the ERT results buffer."
+(defface ert-test-result-expected '((((class color) (background light))
+                                     :background "green1")
+                                    (((class color) (background dark))
+                                     :background "green3"))
+  "Face used for expected results in the ERT results buffer."
   :group 'ert)
 
-(defface ert-test-failed '((((class color) (background light))
-                            :background "red1")
-                           (((class color) (background dark))
-                            :background "red3"))
-  "Face used for failed tests in the ERT results buffer."
-  :group 'ert)
-
-(defface ert-test-error '((((class color) (background light))
-                           :background "red1")
-                          (((class color) (background dark))
-                           :background "red3"))
-  "Face used for tests with errors in the ERT results buffer."
+(defface ert-test-result-unexpected '((((class color) (background light))
+                                       :background "red1")
+                                      (((class color) (background dark))
+                                       :background "red3"))
+  "Face used for unexpected results in the ERT results buffer."
   :group 'ert)
 
 
@@ -317,28 +310,21 @@ BEGIN and END specify a region in the current buffer."
 The return value does not include the line terminator."
   (substring s 0 (ert--string-position ?\n s)))
 
-(defun ert-face-for-test-result (result)
-  "Return a face that represents the test result RESULT.
+(defun ert-face-for-test-result (expectedp)
+  "Return a face that shows whether a test result was expected or unexpected.
 
-RESULT can either be a test result object or one of the symbols
-`passed', `failed', `error', and nil."
-  (etypecase result
-    ((or ert-test-passed (member passed)) 'ert-test-passed)
-    ((or ert-test-failed (member failed)) 'ert-test-failed)
-    ((or ert-test-error (member error)) 'ert-test-error)
-    (null 'default)
-    (ert-test-aborted-with-non-local-exit 'ert-test-error)))
+If EXPECTEDP is nil, returns the face for unexpected results; if
+non-nil, returns the face for expected results.."
+  (if expectedp 'ert-test-result-expected 'ert-test-result-unexpected))
 
 (defun ert-face-for-stats (stats)
   "Return a face that represents STATS."
-  (ert-face-for-test-result
-   (cond ((ert--stats-aborted-p stats) 'nil)
-         ((plusp (ert--stats-error-unexpected stats)) 'error)
-         ((plusp (ert--stats-failed-unexpected stats)) 'failed)
-         ((eql (ert-stats-completed-expected stats) (ert-stats-total stats))
-          (assert (zerop (ert-stats-completed-unexpected stats)) t)
-          'passed)
-         (t 'nil))))
+  (cond ((ert--stats-aborted-p stats) 'nil)
+        ((plusp (ert-stats-completed-unexpected stats))
+         (ert-face-for-test-result nil))
+        ((eql (ert-stats-completed-expected stats) (ert-stats-total stats))
+         (ert-face-for-test-result t))
+        (t 'nil)))
 
 (defun ert--print-test-for-ewoc (entry)
   "The ewoc print function for ewoc test entries.  ENTRY is the entry to print."
@@ -353,15 +339,14 @@ RESULT can either be a test result object or one of the symbols
                                      entry)))
     (cond (hiddenp)
           (t
-           (insert-text-button (format "%c"
-                                       (ert-char-for-test-result
-                                        result
-                                        (ert-test-result-expected-p test
-                                                                    result)))
-                               :type 'ert--results-expand-collapse-button
-                               'face (or (and font-lock-mode
-                                              (ert-face-for-test-result result))
-                                         'button))
+           (let ((expectedp (ert-test-result-expected-p test result)))
+             (insert-text-button (format "%c" (ert-char-for-test-result
+                                               result expectedp))
+                                 :type 'ert--results-expand-collapse-button
+                                 'face (or (and font-lock-mode
+                                                (ert-face-for-test-result
+                                                 expectedp))
+                                           'button)))
            (insert " ")
            (ert-insert-test-name-button (ert-test-name test))
            (insert "\n")
@@ -374,7 +359,9 @@ RESULT can either be a test result object or one of the symbols
                        "\n"))
              (etypecase result
                (ert-test-passed
-                (insert "    passed\n")
+                (if (ert-test-result-expected-p test result)
+                    (insert "    passed\n")
+                  (insert "    passed unexpectedly\n"))
                 (insert ""))
                (ert-test-result-with-condition
                 (insert "    ")

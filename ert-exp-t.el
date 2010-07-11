@@ -139,7 +139,7 @@
                                'ert--results-progress-bar-button)
                              button (t)
                              face ,(if with-font-lock-p
-                                       'ert-test-failed
+                                       'ert-test-result-unexpected
                                      'button))
                   ".F"
                   nil
@@ -148,7 +148,7 @@
                                'ert--results-expand-collapse-button)
                              button (t)
                              face ,(if with-font-lock-p
-                                       'ert-test-failed
+                                       'ert-test-result-unexpected
                                      'button))
                   "F"
                   nil

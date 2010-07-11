@@ -635,27 +635,25 @@ contained in UNIVERSE."
   "Return a character that represents the test result RESULT.
 
 EXPECTEDP specifies whether the result was expected."
-  (let ((char
-         (etypecase result
-           (ert-test-passed ?.)
-           (ert-test-failed ?f)
-           (ert-test-error ?e)
-           (null ?-)
-           (ert-test-aborted-with-non-local-exit ?a))))
-    (if expectedp
-        char
-      (upcase char))))
+  (let ((s (etypecase result
+             (ert-test-passed ".P")
+             (ert-test-failed "fF")
+             (ert-test-error "eE")
+             (null "--")
+             (ert-test-aborted-with-non-local-exit "aA"))))
+    (elt s (if expectedp 0 1))))
 
 (defun ert-string-for-test-result (result expectedp)
   "Return a string that represents the test result RESULT.
 
 EXPECTEDP specifies whether the result was expected."
-  (etypecase result
-    (ert-test-passed "passed")
-    (ert-test-failed "failed")
-    (ert-test-error "error")
-    (null "unknown")
-    (ert-test-aborted-with-non-local-exit "aborted")))
+  (let ((s (etypecase result
+             (ert-test-passed '("passed" "PASSED"))
+             (ert-test-failed '("failed" "FAILED"))
+             (ert-test-error '("error" "ERROR"))
+             (null '("unknown" "UNKNOWN"))
+             (ert-test-aborted-with-non-local-exit '("aborted" "ABORTED")))))
+    (elt s (if expectedp 0 1))))
 
 (defun ert--pp-with-indentation-and-newline (object)
   "Pretty-print OBJECT, indenting it to the current column of point.
