@@ -67,20 +67,20 @@
 
 ;;; Copies/reimplementations of cl functions.
 
-(defun ert-cl-do-remf (plist tag)
+(defun ert--cl-do-remf (plist tag)
   "Copy of `cl-do-remf'.  Modify PLIST by removing TAG."
   (let ((p (cdr plist)))
     (while (and (cdr p) (not (eq (car (cdr p)) tag))) (setq p (cdr (cdr p))))
     (and (cdr p) (progn (setcdr p (cdr (cdr (cdr p)))) t))))
 
-(defun ert-remprop (sym tag)
+(defun ert--remprop (sym tag)
   "Copy of `cl-remprop'.  Modify SYM's plist by removing TAG."
   (let ((plist (symbol-plist sym)))
     (if (and plist (eq tag (car plist)))
 	(progn (setplist sym (cdr (cdr plist))) t)
-      (ert-cl-do-remf plist tag))))
+      (ert--cl-do-remf plist tag))))
 
-(defun ert-remove-if-not (ert-pred ert-list)
+(defun ert--remove-if-not (ert-pred ert-list)
   "A reimplementation of `remove-if-not'.
 
 ERT-PRED is a predicate, ERT-LIST is the input list."
@@ -88,7 +88,7 @@ ERT-PRED is a predicate, ERT-LIST is the input list."
         if (funcall ert-pred ert-x)
         collect ert-x))
 
-(defun ert-intersection (a b)
+(defun ert--intersection (a b)
   "A reimplementation of `intersection'.  Intersect the sets A and B.
 
 Elements are compared using `eql'."
@@ -96,7 +96,7 @@ Elements are compared using `eql'."
         if (memql x b)
         collect x))
 
-(defun ert-set-difference (a b)
+(defun ert--set-difference (a b)
   "A reimplementation of `set-difference'.  Subtract the set B from the set A.
 
 Elements are compared using `eql'."
@@ -104,7 +104,7 @@ Elements are compared using `eql'."
         unless (memql x b)
         collect x))
 
-(defun ert-set-difference-eq (a b)
+(defun ert--set-difference-eq (a b)
   "A reimplementation of `set-difference'.  Subtract the set B from the set A.
 
 Elements are compared using `eq'."
@@ -112,32 +112,32 @@ Elements are compared using `eq'."
         unless (memq x b)
         collect x))
 
-(defun ert-union (a b)
+(defun ert--union (a b)
   "A reimplementation of `union'.  Compute the union of the sets A and B.
 
 Elements are compared using `eql'."
-  (append a (ert-set-difference b a)))
+  (append a (ert--set-difference b a)))
 
 (eval-and-compile
-  (defvar ert-gensym-counter 0))
+  (defvar ert--gensym-counter 0))
 
 (eval-and-compile
-  (defun ert-gensym (&optional prefix)
+  (defun ert--gensym (&optional prefix)
     "Only allows string PREFIX, not compatible with CL."
     (unless prefix (setq prefix "G"))
     (make-symbol (format "%s%s"
                          prefix
-                         (prog1 ert-gensym-counter
-                           (incf ert-gensym-counter))))))
+                         (prog1 ert--gensym-counter
+                           (incf ert--gensym-counter))))))
 
-(defun ert-coerce-to-vector (x)
+(defun ert--coerce-to-vector (x)
   "Coerce X to a vector."
   (when (char-table-p x) (error "Not supported"))
   (if (vectorp x)
       x
     (vconcat x)))
 
-(defun* ert-remove* (x list &key key test)
+(defun* ert--remove* (x list &key key test)
   "Does not support all the keywords of remove*."
   (unless key (setq key #'identity))
   (unless test (setq test #'eql))
@@ -145,21 +145,21 @@ Elements are compared using `eql'."
         unless (funcall test x (funcall key y))
         collect y))
 
-(defun ert-string-position (c s)
+(defun ert--string-position (c s)
   "Return the position of the first occurrence of C in S, or nil if none."
   (loop for i from 0
         for x across s
         when (eql x c) return i))
 
-(defun ert-mismatch (a b)
+(defun ert--mismatch (a b)
   "Return index of first element that differs between A and B.
 
 Like `mismatch'.  Uses `equal' for comparison."
   (cond ((or (listp a) (listp b))
-         (ert-mismatch (ert-coerce-to-vector a)
-                       (ert-coerce-to-vector b)))
+         (ert--mismatch (ert--coerce-to-vector a)
+                       (ert--coerce-to-vector b)))
         ((> (length a) (length b))
-         (ert-mismatch b a))
+         (ert--mismatch b a))
         (t
          (let ((la (length a))
                (lb (length b)))
@@ -173,10 +173,10 @@ Like `mismatch'.  Uses `equal' for comparison."
                                    (assert (equal a b) t)
                                    nil)))))))
 
-(defun ert-subseq (seq start &optional end)
+(defun ert--subseq (seq start &optional end)
   "Returns a subsequence of SEQ from START to END."
   (when (char-table-p seq) (error "Not supported"))
-  (let ((vector (substring (ert-coerce-to-vector seq) start end)))
+  (let ((vector (substring (ert--coerce-to-vector seq) start end)))
     (etypecase seq
       (vector vector)
       (string (concat vector))
@@ -198,7 +198,7 @@ Emacs bug 6581 at URL `http://debbugs.gnu.org/cgi/bugreport.cgi?bug=6581'."
   ;; This implementation is inefficient.  Rather than making it
   ;; efficient, let's hope bug 6581 gets fixed so that we can delete
   ;; it altogether.
-  (not (ert-explain-not-equal-including-properties a b)))
+  (not (ert--explain-not-equal-including-properties a b)))
 
 ;;; Defining and locating tests.
 
@@ -213,34 +213,33 @@ Emacs bug 6581 at URL `http://debbugs.gnu.org/cgi/bugreport.cgi?bug=6581'."
 
 (defun ert-test-boundp (symbol)
   "Return non-nil if SYMBOL names a test."
-  (and (get symbol 'ert-test) t))
+  (and (get symbol 'ert--test) t))
 
 (defun ert-get-test (symbol)
   "If SYMBOL names a test, return that.  Signal an error otherwise."
   (unless (ert-test-boundp symbol) (error "No test named `%S'" symbol))
-  (get symbol 'ert-test))
+  (get symbol 'ert--test))
 
 (defun ert-set-test (symbol definition)
   "Make SYMBOL name the test DEFINITION, and return DEFINITION."
   (when (eq symbol 'nil)
-    ;; We disallow this since `ert-test-at-point' and related
-    ;; functions want to return a test name, but also need an
-    ;; out-of-band value on failure.  Nil is the most natural
-    ;; out-of-band value; using 0 or "" or signalling an error would
-    ;; be too awkward.
+    ;; We disallow nil since `ert-test-at-point' and related functions
+    ;; want to return a test name, but also need an out-of-band value
+    ;; on failure.  Nil is the most natural out-of-band value; using 0
+    ;; or "" or signalling an error would be too awkward.
     ;;
     ;; Note that nil is still a valid value for the `name' slot in
     ;; ert-test objects.  It designates an anonymous test.
     (error "Attempt to define a test named nil"))
-  (put symbol 'ert-test definition)
+  (put symbol 'ert--test definition)
   definition)
 
 (defun ert-make-test-unbound (symbol)
   "Make SYMBOL name no test.  Return SYMBOL."
-  (ert-remprop symbol 'ert-test)
+  (ert--remprop symbol 'ert--test)
   symbol)
 
-(defun ert-parse-keys-and-body (keys-and-body)
+(defun ert--parse-keys-and-body (keys-and-body)
   "Split KEYS-AND-BODY into keyword-and-value pairs and the remaining body.
 
 KEYS-AND-BODY should have the form of a property list, with the
@@ -298,7 +297,7 @@ description of valid values for RESULT-TYPE.
     (destructuring-bind ((&key (expected-result nil expected-result-supplied-p)
                                (tags nil tags-supplied-p))
                          body)
-        (ert-parse-keys-and-body docstring-keys-and-body)
+        (ert--parse-keys-and-body docstring-keys-and-body)
       `(progn
          (ert-set-test ',name
                        (make-ert-test
@@ -328,7 +327,7 @@ description of valid values for RESULT-TYPE.
   (put 'ert-deftest 'lisp-indent-function 2)
   (put 'ert-deftest 'lisp-indent-hook 2))
 
-(defvar ert-find-test-regexp
+(defvar ert--find-test-regexp
   (concat "^\\s-*(ert-deftest"
           find-function-space-re
           "%s\\(\\s-\\|$\\)")
@@ -340,7 +339,7 @@ description of valid values for RESULT-TYPE.
 
 (defun ert-pass ()
   "Terminate the current test and mark it passed.  Does not return."
-  (throw 'ert-pass nil))
+  (throw 'ert--pass nil))
 
 (defun ert-fail (data)
   "Terminate the current test and mark it failed.  Does not return.
@@ -350,21 +349,21 @@ DATA is displayed to the user and should state the reason of the failure."
 
 ;;; The `should' macros.
 
-(defvar ert-should-execution-observer nil)
+(defvar ert--should-execution-observer nil)
 
-(defun ert-signal-should-execution (form-description)
+(defun ert--signal-should-execution (form-description)
   "Tell the current `should' form observer (if any) about FORM-DESCRIPTION."
-  (when ert-should-execution-observer
-    (funcall ert-should-execution-observer form-description)))
+  (when ert--should-execution-observer
+    (funcall ert--should-execution-observer form-description)))
 
-(defun ert-special-operator-p (thing)
+(defun ert--special-operator-p (thing)
   "Return non-nil if THING is a symbol naming a special operator."
   (and (symbolp thing)
        (let ((definition (indirect-function thing t)))
          (and (subrp definition)
               (eql (cdr (subr-arity definition)) 'unevalled)))))
 
-(defun ert-expand-should-1 (whole form inner-expander)
+(defun ert--expand-should-1 (whole form inner-expander)
   "Helper function for the `should' macro and its variants."
   (let ((form
          ;; If `cl-macroexpand' isn't bound, the code that we're
@@ -382,9 +381,9 @@ DATA is displayed to the user and should state the reason of the failure."
     (cond
      ((atom form)
       (funcall inner-expander form `(list ',whole :form ',form :value ,form)))
-     ((ert-special-operator-p (car form))
-      (let ((value (ert-gensym "value-")))
-        `(let ((,value (make-symbol "ert-form-evaluation-aborted")))
+     ((ert--special-operator-p (car form))
+      (let ((value (ert--gensym "value-")))
+        `(let ((,value (ert--gensym "ert-form-evaluation-aborted-")))
            ,(funcall inner-expander
                      `(setq ,value ,form)
                      `(list ',whole :form ',form :value ,value))
@@ -396,10 +395,10 @@ DATA is displayed to the user and should state the reason of the failure."
                     (and (consp fn-name)
                          (eql (car fn-name) 'lambda)
                          (listp (cdr fn-name)))))
-        (let ((fn (ert-gensym "fn-"))
-              (args (ert-gensym "args-"))
-              (value (ert-gensym "value-"))
-              (default-value (ert-gensym "ert-form-evaluation-aborted-")))
+        (let ((fn (ert--gensym "fn-"))
+              (args (ert--gensym "args-"))
+              (value (ert--gensym "value-"))
+              (default-value (ert--gensym "ert-form-evaluation-aborted-")))
           `(let ((,fn (function ,fn-name))
                  (,args (list ,@arg-forms)))
              (let ((,value ',default-value))
@@ -417,7 +416,7 @@ DATA is displayed to the user and should state the reason of the failure."
                                            (apply -explainer- ,args))))))
                ,value))))))))
 
-(defun ert-expand-should (whole form inner-expander)
+(defun ert--expand-should (whole form inner-expander)
   "Helper function for the `should' macro and its variants.
 
 Analyzes FORM and returns an expression that has the same
@@ -433,23 +432,23 @@ and error signalling specific to the particular variant of
 `should'.  The code that INNER-EXPANDER returns must not call
 FORM-DESCRIPTION-FORM before it has called INNER-FORM."
   (lexical-let ((inner-expander inner-expander))
-    (ert-expand-should-1
+    (ert--expand-should-1
      whole form
      (lambda (inner-form form-description-form)
-       (let ((form-description (ert-gensym "form-description-")))
+       (let ((form-description (ert--gensym "form-description-")))
          `(let (,form-description)
             ,(funcall inner-expander
                       `(unwind-protect
                            ,inner-form
                          (setq ,form-description ,form-description-form)
-                         (ert-signal-should-execution ,form-description))
+                         (ert--signal-should-execution ,form-description))
                       `,form-description)))))))
 
 (defmacro* should (form)
   "Evaluate FORM.  If it returns nil, abort the current test as failed.
 
 Returns the value of FORM."
-  (ert-expand-should `(should ,form) form
+  (ert--expand-should `(should ,form) form
                      (lambda (inner-form form-description-form)
                        `(unless ,inner-form
                           (ert-fail ,form-description-form)))))
@@ -458,12 +457,12 @@ Returns the value of FORM."
   "Evaluate FORM.  If it returns non-nil, abort the current test as failed.
 
 Returns nil."
-  (ert-expand-should `(should-not ,form) form
+  (ert--expand-should `(should-not ,form) form
                      (lambda (inner-form form-description-form)
                        `(unless (not ,inner-form)
                           (ert-fail ,form-description-form)))))
 
-(defun ert-should-error-handle-error (form-description-fn
+(defun ert--should-error-handle-error (form-description-fn
                                       condition type exclude-subtypes test)
   "Helper function for `should-error'.
 
@@ -474,7 +473,7 @@ TEST, and aborts the current test as failed if it doesn't."
                               (list type)
                               (symbol (list type)))))
     (assert signalled-conditions)
-    (unless (ert-intersection signalled-conditions handled-conditions)
+    (unless (ert--intersection signalled-conditions handled-conditions)
       (ert-fail (append
                  (funcall form-description-fn)
                  (list
@@ -511,12 +510,12 @@ element of TYPE.  TEST should be a predicate."
   ;; that's a wart, so let's not document it.
   (unless type (setq type ''error))
   (unless test (setq test '(lambda (condition) t)))
-  (ert-expand-should
+  (ert--expand-should
    `(should-error ,form ,@keys)
    form
    (lambda (inner-form form-description-form)
-     (let ((errorp (ert-gensym "errorp"))
-           (form-description-fn (ert-gensym "form-description-fn-")))
+     (let ((errorp (ert--gensym "errorp"))
+           (form-description-fn (ert--gensym "form-description-fn-")))
        `(let ((,errorp nil)
               (,form-description-fn (lambda () ,form-description-form)))
           (condition-case -condition-
@@ -524,11 +523,11 @@ element of TYPE.  TEST should be a predicate."
             ;; We can't use ,type here because we want to evaluate it.
             (error
              (setq ,errorp t)
-             (ert-should-error-handle-error ,form-description-fn
+             (ert--should-error-handle-error ,form-description-fn
                                             -condition-
                                             ,type ,exclude-subtypes ,test)
              ;; It would make sense to have the `should-error' form
-             ;; return the error in this case, but `ert-expand-should'
+             ;; return the error in this case, but `ert--expand-should'
              ;; doesn't allow that at the moment.
              ))
           (unless ,errorp
@@ -540,7 +539,7 @@ element of TYPE.  TEST should be a predicate."
 
 ;;; Explanation of `should' failures.
 
-(defun ert-proper-list-p (x)
+(defun ert--proper-list-p (x)
   "Return non-nil if X is a proper list, nil otherwise."
   (loop
    for firstp = t then nil
@@ -552,13 +551,13 @@ element of TYPE.  TEST should be a predicate."
    (when (not (consp (cdr fast))) (return nil))
    (when (and (not firstp) (eq fast slow)) (return nil))))
 
-(defun ert-explain-format-atom (x)
-  "Format the atom X for `ert-explain-not-equal'."
+(defun ert--explain-format-atom (x)
+  "Format the atom X for `ert--explain-not-equal'."
   (typecase x
     (fixnum (list x (format "#x%x" x) (format "?%c" x)))
     (t x)))
 
-(defun ert-explain-not-equal (a b)
+(defun ert--explain-not-equal (a b)
   "Explainer function for `equal'.
 
 Returns a programmer-readable explanation of why A and B are not
@@ -567,8 +566,8 @@ Returns a programmer-readable explanation of why A and B are not
       `(different-types ,a ,b)
     (etypecase a
       (cons
-       (let ((a-proper-p (ert-proper-list-p a))
-             (b-proper-p (ert-proper-list-p b)))
+       (let ((a-proper-p (ert--proper-list-p a))
+             (b-proper-p (ert--proper-list-p b)))
          (if (not (eql (not a-proper-p) (not b-proper-p)))
              `(one-list-proper-one-improper ,a ,b)
            (if a-proper-p
@@ -576,17 +575,17 @@ Returns a programmer-readable explanation of why A and B are not
                    `(proper-lists-of-different-length ,(length a) ,(length b)
                                                       ,a ,b
                                                       first-mismatch-at
-                                                      ,(ert-mismatch a b))
+                                                      ,(ert--mismatch a b))
                  (loop for i from 0
                        for ai in a
                        for bi in b
-                       for xi = (ert-explain-not-equal ai bi)
+                       for xi = (ert--explain-not-equal ai bi)
                        do (when xi (return `(list-elt ,i ,xi)))
                        finally (assert (equal a b) t)))
-             (let ((car-x (ert-explain-not-equal (car a) (car b))))
+             (let ((car-x (ert--explain-not-equal (car a) (car b))))
                (if car-x
                    `(car ,car-x)
-                 (let ((cdr-x (ert-explain-not-equal (cdr a) (cdr b))))
+                 (let ((cdr-x (ert--explain-not-equal (cdr a) (cdr b))))
                    (if cdr-x
                        `(cdr ,cdr-x)
                      (assert (equal a b) t)
@@ -596,29 +595,29 @@ Returns a programmer-readable explanation of why A and B are not
                                               ,a ,b
                                               ,@(unless (char-table-p a)
                                                   `(first-mismatch-at
-                                                    ,(ert-mismatch a b))))
+                                                    ,(ert--mismatch a b))))
                (loop for i from 0
                      for ai across a
                      for bi across b
-                     for xi = (ert-explain-not-equal ai bi)
+                     for xi = (ert--explain-not-equal ai bi)
                      do (when xi (return `(array-elt ,i ,xi)))
                      finally (assert (equal a b) t))))
       (atom (if (not (equal a b))
                 (if (and (symbolp a) (symbolp b) (string= a b))
                     `(different-symbols-with-the-same-name ,a ,b)
-                 `(different-atoms ,(ert-explain-format-atom a)
-                                   ,(ert-explain-format-atom b)))
+                 `(different-atoms ,(ert--explain-format-atom a)
+                                   ,(ert--explain-format-atom b)))
               nil)))))
-(put 'equal 'ert-explainer 'ert-explain-not-equal)
+(put 'equal 'ert-explainer 'ert--explain-not-equal)
 
-(defun ert-significant-plist-keys (plist)
+(defun ert--significant-plist-keys (plist)
   "Return the keys of PLIST that have non-null values, in order."
   (assert (zerop (mod (length plist) 2)) t)
   (loop for (key value . rest) on plist by #'cddr
         unless (or (null value) (memq key accu)) collect key into accu
         finally (return accu)))
 
-(defun ert-plist-difference-explanation (a b)
+(defun ert--plist-difference-explanation (a b)
   "Return a programmer-readable explanation of why A and B are different plists.
 
 Returns nil if they are equivalent, i.e., have the same value for
@@ -631,16 +630,17 @@ key/value pairs in each list does not matter."
   ;; is valid as a text property key).  Perhaps defining such an
   ;; ordering is useful in other contexts, too, but it's a lot of
   ;; work, so let's punt on it for now.
-  (let* ((keys-a (ert-significant-plist-keys a))
-         (keys-b (ert-significant-plist-keys b))
-         (keys-in-a-not-in-b (ert-set-difference-eq keys-a keys-b))
-         (keys-in-b-not-in-a (ert-set-difference-eq keys-b keys-a)))
+  (let* ((keys-a (ert--significant-plist-keys a))
+         (keys-b (ert--significant-plist-keys b))
+         (keys-in-a-not-in-b (ert--set-difference-eq keys-a keys-b))
+         (keys-in-b-not-in-a (ert--set-difference-eq keys-b keys-a)))
     (flet ((explain-with-key (key)
              (let ((value-a (plist-get a key))
                    (value-b (plist-get b key)))
                (assert (not (equal value-a value-b)) t)
                `(different-properties-for-key
-                 ,key ,(ert-explain-not-equal value-a value-b)))))
+                 ,key ,(ert--explain-not-equal-including-properties value-a
+                                                                    value-b)))))
     (cond (keys-in-a-not-in-b
            (explain-with-key (first keys-in-a-not-in-b)))
           (keys-in-b-not-in-a
@@ -650,7 +650,7 @@ key/value pairs in each list does not matter."
                  when (not (equal (plist-get a key) (plist-get b key)))
                  return (explain-with-key key)))))))
 
-(defun ert-abbreviate-string (s len suffixp)
+(defun ert--abbreviate-string (s len suffixp)
   "Shorten string S to at most LEN chars.
 
 If SUFFIXP is non-nil, returns a suffix of S, otherwise a prefix."
@@ -662,29 +662,29 @@ If SUFFIXP is non-nil, returns a suffix of S, otherwise a prefix."
           (t
            (substring s 0 len)))))
 
-(defun ert-explain-not-equal-including-properties (a b)
+(defun ert--explain-not-equal-including-properties (a b)
   "Explainer function for `ert-equal-including-properties'.
 
 Returns a programmer-readable explanation of why A and B are not
 `ert-equal-including-properties', or nil if they are."
   (if (not (equal a b))
-      (ert-explain-not-equal a b)
+      (ert--explain-not-equal a b)
     (assert (stringp a) t)
     (assert (stringp b) t)
     (assert (eql (length a) (length b)) t)
     (loop for i from 0 to (length a)
           for props-a = (text-properties-at i a)
           for props-b = (text-properties-at i b)
-          for difference = (ert-plist-difference-explanation props-a props-b)
+          for difference = (ert--plist-difference-explanation props-a props-b)
           do (when difference
                (return `(char ,i ,(substring-no-properties a i (1+ i))
                               ,difference
                               context-before
-                              ,(ert-abbreviate-string
+                              ,(ert--abbreviate-string
                                 (substring-no-properties a 0 i)
                                 10 t)
                               context-after
-                              ,(ert-abbreviate-string
+                              ,(ert--abbreviate-string
                                 (substring-no-properties a (1+ i))
                                 10 nil))))
           ;; TODO(ohler): Get `equal-including-properties' fixed in
@@ -694,12 +694,12 @@ Returns a programmer-readable explanation of why A and B are not
           )))
 (put 'ert-equal-including-properties
      'ert-explainer
-     'ert-explain-not-equal-including-properties)
+     'ert--explain-not-equal-including-properties)
 
 
 ;;; Utility functions for load/unload actions.
 
-(defun ert-activate-font-lock-keywords ()
+(defun ert--activate-font-lock-keywords ()
   "Activate font-lock keywords for some of ERT's symbols."
   (font-lock-add-keywords
    nil
@@ -707,14 +707,14 @@ Returns a programmer-readable explanation of why A and B are not
       (1 font-lock-keyword-face nil t)
       (2 font-lock-function-name-face nil t)))))
 
-(defun* ert-remove-from-list (list-var element &key key test)
+(defun* ert--remove-from-list (list-var element &key key test)
   "Remove ELEMENT from the value of LIST-VAR if present.
 
 This can be used as an inverse of `add-to-list'."
   (unless key (setq key #'identity))
   (unless test (setq test #'equal))
   (setf (symbol-value list-var)
-        (ert-remove* element
+        (ert--remove* element
                      (symbol-value list-var)
                      :key key
                      :test test)))
@@ -722,21 +722,21 @@ This can be used as an inverse of `add-to-list'."
 
 ;;; Actions on load/unload.
 
-(add-to-list 'find-function-regexp-alist '(ert-deftest . ert-find-test-regexp))
-(add-to-list 'minor-mode-alist '(ert-current-run-stats
+(add-to-list 'find-function-regexp-alist '(ert-deftest . ert--find-test-regexp))
+(add-to-list 'minor-mode-alist '(ert--current-run-stats
                                  (:eval
-                                  (ert-tests-running-mode-line-indicator))))
-(add-to-list 'emacs-lisp-mode-hook 'ert-activate-font-lock-keywords)
+                                  (ert--tests-running-mode-line-indicator))))
+(add-to-list 'emacs-lisp-mode-hook 'ert--activate-font-lock-keywords)
 
-(defun ert-unload-function ()
+(defun ert--unload-function ()
   "Unload function to undo the side-effects of loading ert.el."
-  (ert-remove-from-list 'find-function-regexp-alist 'ert-deftest :key #'car)
-  (ert-remove-from-list 'minor-mode-alist 'ert-current-run-stats :key #'car)
-  (ert-remove-from-list 'emacs-lisp-mode-hook 'ert-activate-font-lock-keywords)
+  (ert--remove-from-list 'find-function-regexp-alist 'ert-deftest :key #'car)
+  (ert--remove-from-list 'minor-mode-alist 'ert--current-run-stats :key #'car)
+  (ert--remove-from-list 'emacs-lisp-mode-hook 'ert--activate-font-lock-keywords)
   nil)
 
 (defvar ert-unload-hook '())
-(add-hook 'ert-unload-hook 'ert-unload-function)
+(add-hook 'ert-unload-hook 'ert--unload-function)
 
 
 (provide 'ert)

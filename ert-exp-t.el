@@ -136,7 +136,7 @@
                   "Finished.\n"
                   "Finished at:\n\n"
                   `(category ,(button-category-symbol
-                               'ert-results-progress-bar-button)
+                               'ert--results-progress-bar-button)
                              button (t)
                              face ,(if with-font-lock-p
                                        'ert-test-failed
@@ -145,7 +145,7 @@
                   nil
                   "\n\n"
                   `(category ,(button-category-symbol
-                               'ert-results-expand-collapse-button)
+                               'ert--results-expand-collapse-button)
                              button (t)
                              face ,(if with-font-lock-p
                                        'ert-test-failed
@@ -154,7 +154,7 @@
                   nil
                   " "
                   `(category ,(button-category-symbol
-                               'ert-test-name-button)
+                               'ert--test-name-button)
                              button (t)
                              ert-test-name failing-test)
                   "failing-test"

@@ -51,7 +51,7 @@
 (defstruct (ert-test-aborted-with-non-local-exit (:include ert-test-result)))
 
 
-(defun ert-record-backtrace ()
+(defun ert--record-backtrace ()
   "Record the current backtrace (as a list) and return it."
   ;; Since the backtrace is stored in the result object, result
   ;; objects must only be printed with appropriate limits
@@ -70,7 +70,7 @@
    while frame
    collect frame))
 
-(defun ert-print-backtrace (backtrace)
+(defun ert--print-backtrace (backtrace)
   "Format the backtrace BACKTRACE to the current buffer."
   ;; This is essentially a reimplementation of Fbacktrace
   ;; (src/eval.c), but for a saved backtrace, not the current one.
@@ -98,7 +98,7 @@
 
 ;; A container for the state of the execution of a single test and
 ;; environment data needed during its execution.
-(defstruct ert-test-execution-info
+(defstruct ert--test-execution-info
   (test (assert nil))
   (result (assert nil))
   ;; A thunk that may be called when RESULT has been set to its final
@@ -113,28 +113,28 @@
   ;; don't remember whether this feature is important.)
   ert-debug-on-error)
 
-(defun ert-run-test-debugger (info debugger-args)
+(defun ert--run-test-debugger (info debugger-args)
   "During a test run, `debugger' is bound to a closure that calls this function.
 
 This function records failures and errors and either terminates
 the test silently or calls the interactive debugger, as
 appropriate.
 
-INFO is the ert-test-execution-info corresponding to this test
+INFO is the ert--test-execution-info corresponding to this test
 run.  DEBUGGER-ARGS are the arguments to `debugger'."
   (destructuring-bind (first-debugger-arg &rest more-debugger-args)
       debugger-args
     (ecase first-debugger-arg
       ((lambda debug t exit nil)
-       (apply (ert-test-execution-info-next-debugger info) debugger-args))
+       (apply (ert--test-execution-info-next-debugger info) debugger-args))
       (error
        (let* ((condition (first more-debugger-args))
               (type (case (car condition)
                       ((quit) 'quit)
                       ((ert-test-failed) 'failed)
                       (otherwise 'error)))
-              (backtrace (ert-record-backtrace)))
-         (setf (ert-test-execution-info-result info)
+              (backtrace (ert--record-backtrace)))
+         (setf (ert--test-execution-info-result info)
                (ecase type
                  (quit
                   (make-ert-test-quit :condition condition
@@ -151,37 +151,37 @@ run.  DEBUGGER-ARGS are the arguments to `debugger'."
          ;; FIXME: We should probably implement more fine-grained
          ;; control a la non-t `debug-on-error' here.
          (cond
-          ((ert-test-execution-info-ert-debug-on-error info)
-           (apply (ert-test-execution-info-next-debugger info) debugger-args))
+          ((ert--test-execution-info-ert-debug-on-error info)
+           (apply (ert--test-execution-info-next-debugger info) debugger-args))
           (t))
-         (funcall (ert-test-execution-info-exit-continuation info)))))))
+         (funcall (ert--test-execution-info-exit-continuation info)))))))
 
-(defun ert-run-test-internal (ert-test-execution-info)
+(defun ert--run-test-internal (ert-test-execution-info)
   "Low-level function to run a test according to ERT-TEST-EXECUTION-INFO.
 
 This mainly sets up debugger-related bindings."
   (lexical-let ((info ert-test-execution-info))
-    (setf (ert-test-execution-info-next-debugger info) debugger
-          (ert-test-execution-info-ert-debug-on-error info) ert-debug-on-error)
-    (catch 'ert-pass
+    (setf (ert--test-execution-info-next-debugger info) debugger
+          (ert--test-execution-info-ert-debug-on-error info) ert-debug-on-error)
+    (catch 'ert--pass
       ;; For now, each test gets its own temp buffer and its own
       ;; window excursion, just to be safe.  If this turns out to be
       ;; too expensive, we can remove it.
       (with-temp-buffer
         (save-window-excursion
           (let ((debugger (lambda (&rest debugger-args)
-                            (ert-run-test-debugger info debugger-args)))
+                            (ert--run-test-debugger info debugger-args)))
                 (debug-on-error t)
                 (debug-on-quit t)
                 ;; FIXME: Do we need to store the old binding of this
-                ;; and consider it in `ert-run-test-debugger'?
+                ;; and consider it in `ert--run-test-debugger'?
                 (debug-ignored-errors nil))
-            (funcall (ert-test-body (ert-test-execution-info-test info))))))
+            (funcall (ert-test-body (ert--test-execution-info-test info))))))
       (ert-pass))
-    (setf (ert-test-execution-info-result info) (make-ert-test-passed)))
+    (setf (ert--test-execution-info-result info) (make-ert-test-passed)))
   nil)
 
-(defun ert-force-message-log-buffer-truncation ()
+(defun ert--force-message-log-buffer-truncation ()
   "Immediately truncate *Messages* buffer according to `message-log-max'.
 
 This can be useful after reducing the value of `message-log-max'."
@@ -201,7 +201,7 @@ This can be useful after reducing the value of `message-log-max'."
                    (point))))
         (delete-region begin end)))))
 
-(defvar ert-running-tests nil
+(defvar ert--running-tests nil
   "List of tests that are currently in execution.
 
 This list is empty while no test is running, has one element
@@ -221,7 +221,7 @@ Returns the result and stores it in ERT-TEST's `most-recent-result' slot."
                    (with-current-buffer (get-buffer-create "*Messages*")
                      (set-marker (make-marker) (point-max)))))
       (unwind-protect
-          (lexical-let ((info (make-ert-test-execution-info
+          (lexical-let ((info (make-ert--test-execution-info
                                :test ert-test
                                :result
                                (make-ert-test-aborted-with-non-local-exit)
@@ -229,17 +229,17 @@ Returns the result and stores it in ERT-TEST's `most-recent-result' slot."
                                                     (return-from error nil))))
                         (should-form-accu (list)))
             (unwind-protect
-                (let ((ert-should-execution-observer
+                (let ((ert--should-execution-observer
                        (lambda (form-description)
                          (push form-description should-form-accu)))
                       (message-log-max t)
-                      (ert-running-tests (cons ert-test ert-running-tests)))
-                  (ert-run-test-internal info))
-              (let ((result (ert-test-execution-info-result info)))
+                      (ert--running-tests (cons ert-test ert--running-tests)))
+                  (ert--run-test-internal info))
+              (let ((result (ert--test-execution-info-result info)))
                 (setf (ert-test-result-messages result)
                       (with-current-buffer (get-buffer-create "*Messages*")
                         (buffer-substring begin-marker (point-max))))
-                (ert-force-message-log-buffer-truncation)
+                (ert--force-message-log-buffer-truncation)
                 (setq should-form-accu (nreverse should-form-accu))
                 (setf (ert-test-result-should-forms result)
                       should-form-accu)
@@ -249,7 +249,7 @@ Returns the result and stores it in ERT-TEST's `most-recent-result' slot."
 
 (defun ert-running-test ()
   "Return the top-level test currently executing."
-  (car (last ert-running-tests)))
+  (car (last ert--running-tests)))
 
 
 ;;; Test selectors.
@@ -381,7 +381,7 @@ contained in UNIVERSE."
      (etypecase universe
        ((member t) (mapcar #'ert-get-test
                            (apropos-internal selector #'ert-test-boundp)))
-       (list (ert-remove-if-not (lambda (test)
+       (list (ert--remove-if-not (lambda (test)
                                   (and (ert-test-name test)
                                        (string-match selector
                                                      (ert-test-name test))))
@@ -414,12 +414,12 @@ contained in UNIVERSE."
          (not
           (assert (eql (length operands) 1))
           (let ((all-tests (ert-select-tests 't universe)))
-            (ert-set-difference all-tests
+            (ert--set-difference all-tests
                                 (ert-select-tests (first operands) all-tests))))
          (or
           (case (length operands)
             (0 (ert-select-tests 'nil universe))
-            (t (ert-union (ert-select-tests (first operands) universe)
+            (t (ert--union (ert-select-tests (first operands) universe)
                           (ert-select-tests `(or ,@(rest operands))
                                             universe)))))
          (tag
@@ -431,10 +431,10 @@ contained in UNIVERSE."
                             universe)))
          (satisfies
           (assert (eql (length operands) 1))
-          (ert-remove-if-not (first operands)
+          (ert--remove-if-not (first operands)
                              (ert-select-tests 't universe))))))))
 
-(defun ert-insert-human-readable-selector (selector)
+(defun ert--insert-human-readable-selector (selector)
   "Insert a human-readable presentation of SELECTOR into the current buffer."
   ;; This is needed to avoid printing the (huge) contents of the
   ;; `backtrace' slot of the result objects in the
@@ -476,7 +476,7 @@ contained in UNIVERSE."
 ;; that corresponds to this run in order to be able to update the
 ;; statistics correctly when a test is re-run interactively and has a
 ;; different result than before.
-(defstruct ert-stats
+(defstruct ert--stats
   (selector (assert nil))
   ;; The tests, in order.
   (tests (assert nil) :type vector)
@@ -509,15 +509,15 @@ contained in UNIVERSE."
 
 (defun ert-stats-completed-expected (stats)
   "Returns the number of tests in STATS that had expected results."
-  (+ (ert-stats-passed-expected stats)
-     (ert-stats-failed-expected stats)
-     (ert-stats-error-expected stats)))
+  (+ (ert--stats-passed-expected stats)
+     (ert--stats-failed-expected stats)
+     (ert--stats-error-expected stats)))
 
 (defun ert-stats-completed-unexpected (stats)
   "Returns the number of tests in STATS that had unexpected results."
-  (+ (ert-stats-passed-unexpected stats)
-     (ert-stats-failed-unexpected stats)
-     (ert-stats-error-unexpected stats)))
+  (+ (ert--stats-passed-unexpected stats)
+     (ert--stats-failed-unexpected stats)
+     (ert--stats-error-unexpected stats)))
 
 (defun ert-stats-completed (stats)
   "Number of tests in STATS that have run so far."
@@ -526,66 +526,69 @@ contained in UNIVERSE."
 
 (defun ert-stats-total (stats)
   "Number of tests in STATS, regardless of whether they have run yet."
-  (length (ert-stats-tests stats)))
+  (length (ert--stats-tests stats)))
 
+;; The stats object of the current run, dynamically bound.  This is
+;; used for the mode line progress indicator.
+(defvar ert--current-run-stats nil)
 
 (defun ert-run-or-rerun-test (stats test listener)
   ;; checkdoc-order: nil
   "Run the single test TEST and record the result using STATS and LISTENER."
-  (let ((ert-current-run-stats stats)
-        (pos (ert-stats-test-index stats test))
-        (results (ert-stats-test-results stats))
-        (expected (ert-stats-test-results-expected stats)))
+  (let ((ert--current-run-stats stats)
+        (pos (ert--stats-test-index stats test))
+        (results (ert--stats-test-results stats))
+        (expected (ert--stats-test-results-expected stats)))
     ;; Adjust stats to remove previous result.
     (if (aref expected pos)
         (etypecase (aref results pos)
-          (ert-test-passed (decf (ert-stats-passed-expected stats)))
-          (ert-test-failed (decf (ert-stats-failed-expected stats)))
-          (ert-test-error (decf (ert-stats-error-expected stats)))
+          (ert-test-passed (decf (ert--stats-passed-expected stats)))
+          (ert-test-failed (decf (ert--stats-failed-expected stats)))
+          (ert-test-error (decf (ert--stats-error-expected stats)))
           (null)
           (ert-test-aborted-with-non-local-exit))
       (etypecase (aref results pos)
-        (ert-test-passed (decf (ert-stats-passed-unexpected stats)))
-        (ert-test-failed (decf (ert-stats-failed-unexpected stats)))
-        (ert-test-error (decf (ert-stats-error-unexpected stats)))
+        (ert-test-passed (decf (ert--stats-passed-unexpected stats)))
+        (ert-test-failed (decf (ert--stats-failed-unexpected stats)))
+        (ert-test-error (decf (ert--stats-error-unexpected stats)))
         (null)
         (ert-test-aborted-with-non-local-exit)))
     (setf (aref results pos) nil)
     ;; Call listener after setting/before resetting
-    ;; (ert-stats-current-test stats); the listener might refresh the
+    ;; (ert--stats-current-test stats); the listener might refresh the
     ;; mode line display, and if the value is not set yet/any more
     ;; during this refresh, the mode line will flicker unnecessarily.
-    (setf (ert-stats-current-test stats) test)
+    (setf (ert--stats-current-test stats) test)
     (funcall listener 'test-started stats test)
     (setf (ert-test-most-recent-result test) nil)
-    (setf (aref (ert-stats-test-start-times stats) pos) (current-time))
+    (setf (aref (ert--stats-test-start-times stats) pos) (current-time))
     (unwind-protect
         (ert-run-test test)
-      (setf (aref (ert-stats-test-end-times stats) pos) (current-time))
+      (setf (aref (ert--stats-test-end-times stats) pos) (current-time))
       (let* ((result (ert-test-most-recent-result test))
              (expectedp (ert-test-result-expected-p test result)))
         ;; Adjust stats to add new result.
         (if expectedp
             (etypecase result
-              (ert-test-passed (incf (ert-stats-passed-expected stats)))
-              (ert-test-failed (incf (ert-stats-failed-expected stats)))
-              (ert-test-error (incf (ert-stats-error-expected stats)))
+              (ert-test-passed (incf (ert--stats-passed-expected stats)))
+              (ert-test-failed (incf (ert--stats-failed-expected stats)))
+              (ert-test-error (incf (ert--stats-error-expected stats)))
               (null)
               (ert-test-aborted-with-non-local-exit))
           (etypecase result
-            (ert-test-passed (incf (ert-stats-passed-unexpected stats)))
-            (ert-test-failed (incf (ert-stats-failed-unexpected stats)))
-            (ert-test-error (incf (ert-stats-error-unexpected stats)))
+            (ert-test-passed (incf (ert--stats-passed-unexpected stats)))
+            (ert-test-failed (incf (ert--stats-failed-unexpected stats)))
+            (ert-test-error (incf (ert--stats-error-unexpected stats)))
             (null)
             (ert-test-aborted-with-non-local-exit)))
         (setf (aref results pos) result
               (aref expected pos) expectedp)
         (funcall listener 'test-ended stats test result))
-      (setf (ert-stats-current-test stats) nil))))
+      (setf (ert--stats-current-test stats) nil))))
 
 (defun ert-run-tests (selector listener)
   "Run the tests specified by SELECTOR, sending progress updates to LISTENER."
-  (let* ((tests (ert-coerce-to-vector (ert-select-tests selector t)))
+  (let* ((tests (ert--coerce-to-vector (ert-select-tests selector t)))
          (map (let ((map (make-hash-table :size (length tests))))
                 (loop for i from 0
                       for test across tests
@@ -593,7 +596,7 @@ contained in UNIVERSE."
                       (assert (not (gethash key map)))
                       (setf (gethash key map) i))
                 map))
-         (stats (make-ert-stats
+         (stats (make-ert--stats
                  :selector selector
                  :tests tests
                  :test-map map
@@ -604,27 +607,27 @@ contained in UNIVERSE."
                  :start-time (current-time))))
     (funcall listener 'run-started stats)
     (let ((abortedp t))
-      (let ((ert-current-run-stats stats))
+      (let ((ert--current-run-stats stats))
         (force-mode-line-update)
         (unwind-protect
             (progn
               (loop for test across tests do
                     (ert-run-or-rerun-test stats test listener))
               (setq abortedp nil))
-          (setf (ert-stats-aborted-p stats) abortedp)
-          (setf (ert-stats-end-time stats) (current-time))
+          (setf (ert--stats-aborted-p stats) abortedp)
+          (setf (ert--stats-end-time stats) (current-time))
           (funcall listener 'run-ended stats abortedp)))
       stats)))
 
-(defun ert-stats-test-index (stats test)
+(defun ert--stats-test-index (stats test)
   ;; checkdoc-order: nil
   "Return the index of TEST in the run represented by STATS."
-  (gethash (or (ert-test-name test) test) (ert-stats-test-map stats)))
+  (gethash (or (ert-test-name test) test) (ert--stats-test-map stats)))
 
 
 ;;; Formatting functions shared across UIs.
 
-(defun ert-format-time-iso8601 (time)
+(defun ert--format-time-iso8601 (time)
   "Format TIME in the variant of ISO 8601 used for timestamps in ERT."
   (format-time-string "%Y-%m-%d %T%z" time))
 
@@ -654,7 +657,7 @@ EXPECTEDP specifies whether the result was expected."
     (null "unknown")
     (ert-test-aborted-with-non-local-exit "aborted")))
 
-(defun ert-pp-with-indentation-and-newline (object)
+(defun ert--pp-with-indentation-and-newline (object)
   "Pretty-print OBJECT, indenting it to the current column of point.
 Ensures a final newline is inserted."
   (let ((begin (point)))

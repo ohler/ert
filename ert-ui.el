@@ -130,7 +130,7 @@ Nothing more than an interactive interface to `ert-make-test-unbound'."
 ;;; Display of test progress and results.
 
 ;; An entry in the results buffer ewoc.  There is one entry per test.
-(defstruct ert-ewoc-entry
+(defstruct ert--ewoc-entry
   (test (assert nil))
   ;; If the result of this test was expected, its ewoc entry is hidden
   ;; initially.
@@ -150,38 +150,34 @@ Nothing more than an interactive interface to `ert-make-test-unbound'."
 ;; Variables local to the results buffer.
 
 ;; The ewoc.
-(defvar ert-results-ewoc)
+(defvar ert--results-ewoc)
 ;; The stats object.
-(defvar ert-results-stats)
+(defvar ert--results-stats)
 ;; A string with one character per test.  Each character represents
 ;; the result of the corresponding test.  The string is displayed near
 ;; the top of the buffer and serves as a progress bar.
-(defvar ert-results-progress-bar-string)
+(defvar ert--results-progress-bar-string)
 ;; The position where the progress bar button begins.
-(defvar ert-results-progress-bar-button-begin)
+(defvar ert--results-progress-bar-button-begin)
 ;; The test result listener that updates the buffer when tests are run.
-(defvar ert-results-listener)
-
-;; The same as `ert-results-stats', but dynamically bound.  Used for
-;; the mode line progress indicator.
-(defvar ert-current-run-stats nil)
+(defvar ert--results-listener)
 
 (defun ert-insert-test-name-button (test-name)
   "Insert a button that links to TEST-NAME."
   (insert-text-button (format "%S" test-name)
-                      :type 'ert-test-name-button
+                      :type 'ert--test-name-button
                       'ert-test-name test-name))
 
-(defun ert-results-format-expected-unexpected (expected unexpected)
+(defun ert--results-format-expected-unexpected (expected unexpected)
   "Return a string indicating EXPECTED expected results, UNEXPECTED unexpected."
   (if (zerop unexpected)
       (format "%s" expected)
     (format "%s (%s unexpected)" (+ expected unexpected) unexpected)))
 
-(defun ert-results-update-ewoc-hf (ewoc stats)
+(defun ert--results-update-ewoc-hf (ewoc stats)
   "Update the header and footer of EWOC to show certain information from STATS.
 
-Also sets `ert-results-progress-bar-button-begin'."
+Also sets `ert--results-progress-bar-button-begin'."
   (let ((run-count (ert-stats-completed stats))
         (results-buffer (current-buffer))
         ;; Need to save buffer-local value.
@@ -191,66 +187,66 @@ Also sets `ert-results-progress-bar-button-begin'."
      ;; header
      (with-temp-buffer
        (insert "Selector: ")
-       (ert-insert-human-readable-selector (ert-stats-selector stats))
+       (ert--insert-human-readable-selector (ert--stats-selector stats))
        (insert "\n")
        (insert
         (format (concat "Passed: %s\n"
                         "Failed: %s\n"
                         "Error:  %s\n"
                         "Total:  %s/%s\n\n")
-                (ert-results-format-expected-unexpected
-                 (ert-stats-passed-expected stats)
-                 (ert-stats-passed-unexpected stats))
-                (ert-results-format-expected-unexpected
-                 (ert-stats-failed-expected stats)
-                 (ert-stats-failed-unexpected stats))
-                (ert-results-format-expected-unexpected
-                 (ert-stats-error-expected stats)
-                 (ert-stats-error-unexpected stats))
+                (ert--results-format-expected-unexpected
+                 (ert--stats-passed-expected stats)
+                 (ert--stats-passed-unexpected stats))
+                (ert--results-format-expected-unexpected
+                 (ert--stats-failed-expected stats)
+                 (ert--stats-failed-unexpected stats))
+                (ert--results-format-expected-unexpected
+                 (ert--stats-error-expected stats)
+                 (ert--stats-error-unexpected stats))
                 run-count
                 (ert-stats-total stats)))
        (insert
         (format "Started at:   %s\n"
-                (ert-format-time-iso8601 (ert-stats-start-time stats))))
+                (ert--format-time-iso8601 (ert--stats-start-time stats))))
        ;; FIXME: This is ugly.  Need to properly define invariants of
        ;; the `stats' data structure.
-       (let ((state (cond ((ert-stats-aborted-p stats) 'aborted)
-                          ((ert-stats-current-test stats) 'running)
-                          ((ert-stats-end-time stats) 'finished)
+       (let ((state (cond ((ert--stats-aborted-p stats) 'aborted)
+                          ((ert--stats-current-test stats) 'running)
+                          ((ert--stats-end-time stats) 'finished)
                           (t 'preparing))))
          (ecase state
            (preparing
             (insert ""))
            (aborted
-            (cond ((ert-stats-current-test stats)
+            (cond ((ert--stats-current-test stats)
                    (insert "Aborted during test: ")
                    (ert-insert-test-name-button
-                    (ert-test-name (ert-stats-current-test stats))))
+                    (ert-test-name (ert--stats-current-test stats))))
                   (t
                    (insert "Aborted."))))
            (running
-            (assert (ert-stats-current-test stats))
+            (assert (ert--stats-current-test stats))
             (insert "Running test: ")
             (ert-insert-test-name-button (ert-test-name
-                                          (ert-stats-current-test stats))))
+                                          (ert--stats-current-test stats))))
            (finished
-            (assert (not (ert-stats-current-test stats)))
+            (assert (not (ert--stats-current-test stats)))
             (insert "Finished.")))
          (insert "\n")
-         (if (ert-stats-end-time stats)
+         (if (ert--stats-end-time stats)
              (insert
               (format "%s%s\n"
-                      (if (ert-stats-aborted-p stats)
+                      (if (ert--stats-aborted-p stats)
                           "Aborted at:   "
                         "Finished at:  ")
-                      (ert-format-time-iso8601 (ert-stats-end-time stats))))
+                      (ert--format-time-iso8601 (ert--stats-end-time stats))))
            (insert "\n"))
          (insert "\n"))
        (let ((progress-bar-string (with-current-buffer results-buffer
-                                    ert-results-progress-bar-string)))
+                                    ert--results-progress-bar-string)))
          (let ((progress-bar-button-begin
                 (insert-text-button progress-bar-string
-                                    :type 'ert-results-progress-bar-button
+                                    :type 'ert--results-progress-bar-button
                                     'face (or (and font-lock
                                                    (ert-face-for-stats stats))
                                               'button))))
@@ -259,7 +255,7 @@ Also sets `ert-results-progress-bar-button-begin'."
            ;; `progress-bar-button-begin' will be the right position
            ;; even in the results buffer.
            (with-current-buffer results-buffer
-             (set (make-local-variable 'ert-results-progress-bar-button-begin)
+             (set (make-local-variable 'ert--results-progress-bar-button-begin)
                   progress-bar-button-begin))))
        (insert "\n\n")
        (buffer-string))
@@ -278,19 +274,19 @@ Also sets `ert-results-progress-bar-button-begin'."
 While running tests, ERT shows the current progress, and this variable
 determines how frequently the progress display is updated.")
 
-(defun ert-results-update-stats-display (ewoc stats)
+(defun ert--results-update-stats-display (ewoc stats)
   "Update EWOC and the mode line to show data from STATS."
   ;; TODO(ohler): investigate using `make-progress-reporter'.
-  (ert-results-update-ewoc-hf ewoc stats)
-  (when (>= (float-time) (ert-stats-next-redisplay stats))
+  (ert--results-update-ewoc-hf ewoc stats)
+  (when (>= (float-time) (ert--stats-next-redisplay stats))
     (force-mode-line-update)
     (redisplay t)
-    (setf (ert-stats-next-redisplay stats)
+    (setf (ert--stats-next-redisplay stats)
           (+ (float-time) ert-test-run-redisplay-interval-secs))))
 
-(defun ert-tests-running-mode-line-indicator ()
+(defun ert--tests-running-mode-line-indicator ()
   "Return a string for the mode line that shows the test run progress."
-  (let* ((stats ert-current-run-stats)
+  (let* ((stats ert--current-run-stats)
          (tests-total (ert-stats-total stats))
          (tests-completed (ert-stats-completed stats)))
     (if (>= tests-completed tests-total)
@@ -298,12 +294,12 @@ determines how frequently the progress display is updated.")
       (format " ERT(%s/%s):%s"
               (1+ tests-completed)
               tests-total
-              (if (null (ert-stats-current-test stats))
+              (if (null (ert--stats-current-test stats))
                   "?"
                 (format "%S"
-                        (ert-test-name (ert-stats-current-test stats))))))))
+                        (ert-test-name (ert--stats-current-test stats))))))))
 
-(defun ert-make-xrefs-region (begin end)
+(defun ert--make-xrefs-region (begin end)
   "Attach cross-references to function names between BEGIN and END.
 
 BEGIN and END specify a region in the current buffer."
@@ -315,11 +311,11 @@ BEGIN and END specify a region in the current buffer."
       (let ((debugger-previous-backtrace nil))
         (debugger-make-xrefs)))))
 
-(defun ert-string-first-line (s)
+(defun ert--string-first-line (s)
   "Return the first line of S, or S if it contains no newlines.
 
 The return value does not include the line terminator."
-  (substring s 0 (ert-string-position ?\n s)))
+  (substring s 0 (ert--string-position ?\n s)))
 
 (defun ert-face-for-test-result (result)
   "Return a face that represents the test result RESULT.
@@ -336,24 +332,24 @@ RESULT can either be a test result object or one of the symbols
 (defun ert-face-for-stats (stats)
   "Return a face that represents STATS."
   (ert-face-for-test-result
-   (cond ((ert-stats-aborted-p stats) 'nil)
-         ((plusp (ert-stats-error-unexpected stats)) 'error)
-         ((plusp (ert-stats-failed-unexpected stats)) 'failed)
+   (cond ((ert--stats-aborted-p stats) 'nil)
+         ((plusp (ert--stats-error-unexpected stats)) 'error)
+         ((plusp (ert--stats-failed-unexpected stats)) 'failed)
          ((eql (ert-stats-completed-expected stats) (ert-stats-total stats))
           (assert (zerop (ert-stats-completed-unexpected stats)) t)
           'passed)
          (t 'nil))))
 
-(defun ert-print-test-for-ewoc (entry)
+(defun ert--print-test-for-ewoc (entry)
   "The ewoc print function for ewoc test entries.  ENTRY is the entry to print."
-  (let* ((test (ert-ewoc-entry-test entry))
-         (stats ert-results-stats)
-         (result (let ((pos (ert-stats-test-index stats test)))
+  (let* ((test (ert--ewoc-entry-test entry))
+         (stats ert--results-stats)
+         (result (let ((pos (ert--stats-test-index stats test)))
                    (assert pos)
-                   (aref (ert-stats-test-results stats) pos)))
-         (hiddenp (ert-ewoc-entry-hidden-p entry))
-         (expandedp (ert-ewoc-entry-expanded-p entry))
-         (extended-printer-limits-p (ert-ewoc-entry-extended-printer-limits-p
+                   (aref (ert--stats-test-results stats) pos)))
+         (hiddenp (ert--ewoc-entry-hidden-p entry))
+         (expandedp (ert--ewoc-entry-expanded-p entry))
+         (extended-printer-limits-p (ert--ewoc-entry-extended-printer-limits-p
                                      entry)))
     (cond (hiddenp)
           (t
@@ -362,7 +358,7 @@ RESULT can either be a test result object or one of the symbols
                                         result
                                         (ert-test-result-expected-p test
                                                                     result)))
-                               :type 'ert-results-expand-collapse-button
+                               :type 'ert--results-expand-collapse-button
                                'face (or (and font-lock-mode
                                          (ert-face-for-test-result result))
                                          'button))
@@ -373,7 +369,7 @@ RESULT can either be a test result object or one of the symbols
              (when (ert-test-documentation test)
                (insert "    "
                        (propertize
-                        (ert-string-first-line (ert-test-documentation test))
+                        (ert--string-first-line (ert-test-documentation test))
                         'font-lock-face 'font-lock-doc-face)
                        "\n"))
              (etypecase result
@@ -386,24 +382,24 @@ RESULT can either be a test result object or one of the symbols
                       (print-level (if extended-printer-limits-p 12 6))
                       (print-length (if extended-printer-limits-p 100 10)))
                   (let ((begin (point)))
-                    (ert-pp-with-indentation-and-newline
+                    (ert--pp-with-indentation-and-newline
                      (ert-test-result-with-condition-condition result))
-                    (ert-make-xrefs-region begin (point)))))
+                    (ert--make-xrefs-region begin (point)))))
                (ert-test-aborted-with-non-local-exit
                 (insert "    aborted\n")))
              (insert "\n")))))
   nil)
 
-(defun ert-results-font-lock-function (enabledp)
+(defun ert--results-font-lock-function (enabledp)
   "Redraw the ERT results buffer after font-lock-mode was switched on or off.
 
 ENABLEDP is true if font-lock-mode is switched on, false
 otherwise."
-  (ert-results-update-ewoc-hf ert-results-ewoc ert-results-stats)
-  (ewoc-refresh ert-results-ewoc)
+  (ert--results-update-ewoc-hf ert--results-ewoc ert--results-stats)
+  (ewoc-refresh ert--results-ewoc)
   (font-lock-default-function enabledp))
 
-(defun ert-setup-results-buffer (stats listener buffer-name)
+(defun ert--setup-results-buffer (stats listener buffer-name)
   "Set up a test results buffer.
 
 STATS is the stats object; LISTENER is the results listener;
@@ -422,23 +418,23 @@ BUFFER-NAME, if non-nil, is the buffer name to use."
         ;; font-lock-mode turns itself off in change-major-mode-hook.)
         (erase-buffer)
         (set (make-local-variable 'font-lock-function)
-             'ert-results-font-lock-function)
-        (let ((ewoc (ewoc-create 'ert-print-test-for-ewoc nil nil t)))
-          (set (make-local-variable 'ert-results-ewoc) ewoc)
-          (set (make-local-variable 'ert-results-stats) stats)
-          (set (make-local-variable 'ert-results-progress-bar-string)
+             'ert--results-font-lock-function)
+        (let ((ewoc (ewoc-create 'ert--print-test-for-ewoc nil nil t)))
+          (set (make-local-variable 'ert--results-ewoc) ewoc)
+          (set (make-local-variable 'ert--results-stats) stats)
+          (set (make-local-variable 'ert--results-progress-bar-string)
                (make-string (ert-stats-total stats)
                             (ert-char-for-test-result nil t)))
-          (set (make-local-variable 'ert-results-listener) listener)
-          (loop for test across (ert-stats-tests stats) do
+          (set (make-local-variable 'ert--results-listener) listener)
+          (loop for test across (ert--stats-tests stats) do
                 (ewoc-enter-last ewoc
-                                 (make-ert-ewoc-entry :test test :hidden-p t)))
-          (ert-results-update-ewoc-hf ert-results-ewoc ert-results-stats)
+                                 (make-ert--ewoc-entry :test test :hidden-p t)))
+          (ert--results-update-ewoc-hf ert--results-ewoc ert--results-stats)
           (goto-char (1- (point-max)))
           buffer)))))
 
 
-(defvar ert-selector-history nil
+(defvar ert--selector-history nil
   "List of recent test selectors read from terminal.")
 
 ;; Should OUTPUT-BUFFER-NAME and MESSAGE-FN really be arguments here?
@@ -454,13 +450,13 @@ OUTPUT-BUFFER-NAME and MESSAGE-FN should normally be nil; they
 are used for automated self-tests and specify which buffer to use
 and how to display message."
   (interactive
-   (list (let ((default (if ert-selector-history
-                            (first ert-selector-history)
+   (list (let ((default (if ert--selector-history
+                            (first ert--selector-history)
                           "t")))
            (read-from-minibuffer (if (null default)
                                      "Run tests: "
                                    (format "Run tests (default %s): " default))
-                                 nil nil t 'ert-selector-history
+                                 nil nil t 'ert--selector-history
                                  default nil))
          nil))
   (unless message-fn (setq message-fn 'message))
@@ -473,7 +469,7 @@ and how to display message."
             (ecase event-type
               (run-started
                (destructuring-bind (stats) event-args
-                 (setq buffer (ert-setup-results-buffer stats
+                 (setq buffer (ert--setup-results-buffer stats
                                                         listener
                                                         output-buffer-name))
                  (pop-to-buffer buffer)))
@@ -491,35 +487,35 @@ and how to display message."
                             (if (zerop unexpected)
                                 ""
                               (format ", %s unexpected" unexpected))))
-                 (ert-results-update-stats-display (with-current-buffer buffer
-                                                     ert-results-ewoc)
+                 (ert--results-update-stats-display (with-current-buffer buffer
+                                                     ert--results-ewoc)
                                                    stats)))
               (test-started
                (destructuring-bind (stats test) event-args
                  (with-current-buffer buffer
-                   (let* ((ewoc ert-results-ewoc)
-                          (pos (ert-stats-test-index stats test))
+                   (let* ((ewoc ert--results-ewoc)
+                          (pos (ert--stats-test-index stats test))
                           (node (ewoc-nth ewoc pos)))
                      (assert node)
-                     (setf (ert-ewoc-entry-test (ewoc-data node)) test)
-                     (aset ert-results-progress-bar-string pos
+                     (setf (ert--ewoc-entry-test (ewoc-data node)) test)
+                     (aset ert--results-progress-bar-string pos
                            (ert-char-for-test-result nil t))
-                     (ert-results-update-stats-display ewoc stats)
+                     (ert--results-update-stats-display ewoc stats)
                      (ewoc-invalidate ewoc node)))))
               (test-ended
                (destructuring-bind (stats test result) event-args
                  (with-current-buffer buffer
-                   (let* ((ewoc ert-results-ewoc)
-                          (pos (ert-stats-test-index stats test))
+                   (let* ((ewoc ert--results-ewoc)
+                          (pos (ert--stats-test-index stats test))
                           (node (ewoc-nth ewoc pos)))
-                     (when (ert-ewoc-entry-hidden-p (ewoc-data node))
-                       (setf (ert-ewoc-entry-hidden-p (ewoc-data node))
+                     (when (ert--ewoc-entry-hidden-p (ewoc-data node))
+                       (setf (ert--ewoc-entry-hidden-p (ewoc-data node))
                              (ert-test-result-expected-p test result)))
-                     (aset ert-results-progress-bar-string pos
+                     (aset ert--results-progress-bar-string pos
                            (ert-char-for-test-result result
                                                      (ert-test-result-expected-p
                                                       test result)))
-                     (ert-results-update-stats-display ewoc stats)
+                     (ert--results-update-stats-display ewoc stats)
                      (ewoc-invalidate ewoc node))))))))
     (ert-run-tests
      selector
@@ -586,23 +582,23 @@ and how to display message."
     ["Show execution time of each test" ert-results-pop-to-timings]
     ))
 
-(define-button-type 'ert-results-progress-bar-button
-  'action #'ert-results-progress-bar-button-action
+(define-button-type 'ert--results-progress-bar-button
+  'action #'ert--results-progress-bar-button-action
   'help-echo "mouse-2, RET: Reveal test result")
 
-(define-button-type 'ert-test-name-button
-  'action #'ert-test-name-button-action
+(define-button-type 'ert--test-name-button
+  'action #'ert--test-name-button-action
   'help-echo "mouse-2, RET: Find test definition")
 
-(define-button-type 'ert-results-expand-collapse-button
-  'action #'ert-results-expand-collapse-button-action
+(define-button-type 'ert--results-expand-collapse-button
+  'action #'ert--results-expand-collapse-button-action
   'help-echo "mouse-2, RET: Expand/collapse test result")
 
-(defun ert-results-test-node-or-null-at-point ()
+(defun ert--results-test-node-or-null-at-point ()
   "If point is on a valid ewoc node, return it; return nil otherwise.
 
 To be used in the ERT results buffer."
-  (let* ((ewoc ert-results-ewoc)
+  (let* ((ewoc ert--results-ewoc)
          (node (ewoc-locate ewoc)))
     ;; `ewoc-locate' will return an arbitrary node when point is on
     ;; header or footer, or when all nodes are invisible.  So we need
@@ -612,15 +608,15 @@ To be used in the ERT results buffer."
     ;; perhaps this has been changed?
     (if (and node
              (>= (point) (ewoc-location node))
-             (not (ert-ewoc-entry-hidden-p (ewoc-data node))))
+             (not (ert--ewoc-entry-hidden-p (ewoc-data node))))
         node
       nil)))
 
-(defun ert-results-test-node-at-point ()
+(defun ert--results-test-node-at-point ()
   "If point is on a valid ewoc node, return it; signal an error otherwise.
 
 To be used in the ERT results buffer."
-  (or (ert-results-test-node-or-null-at-point)
+  (or (ert--results-test-node-or-null-at-point)
       (error "No test at point")))
 
 (defun ert-results-next-test ()
@@ -628,38 +624,40 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (ert-results-move (ewoc-locate ert-results-ewoc) 'ewoc-next "No tests below"))
+  (ert--results-move (ewoc-locate ert--results-ewoc) 'ewoc-next
+                     "No tests below"))
 
 (defun ert-results-previous-test ()
   "Move point to the previous test.
 
 To be used in the ERT results buffer."
   (interactive)
-  (ert-results-move (ewoc-locate ert-results-ewoc) 'ewoc-prev "No tests above"))
+  (ert--results-move (ewoc-locate ert--results-ewoc) 'ewoc-prev
+                     "No tests above"))
 
-(defun ert-results-move (node ewoc-fn error-message)
+(defun ert--results-move (node ewoc-fn error-message)
   "Move point from NODE to the previous or next node.
 
 EWOC-FN specifies the direction and should be either `ewoc-prev'
 or `ewoc-next'.  If there are no more nodes in that direction, an
 error is signalled with the message ERROR-MESSAGE."
   (loop
-   (setq node (funcall ewoc-fn ert-results-ewoc node))
+   (setq node (funcall ewoc-fn ert--results-ewoc node))
    (when (null node)
      (error "%s" error-message))
-   (unless (ert-ewoc-entry-hidden-p (ewoc-data node))
+   (unless (ert--ewoc-entry-hidden-p (ewoc-data node))
      (goto-char (ewoc-location node))
      (return))))
 
-(defun ert-results-expand-collapse-button-action (button)
+(defun ert--results-expand-collapse-button-action (button)
   "Expand or collapse the test node BUTTON belongs to."
-  (let* ((ewoc ert-results-ewoc)
+  (let* ((ewoc ert--results-ewoc)
          (node (save-excursion
-                 (goto-char (ert-button-action-position))
-                 (ert-results-test-node-at-point)))
+                 (goto-char (ert--button-action-position))
+                 (ert--results-test-node-at-point)))
          (entry (ewoc-data node)))
-    (setf (ert-ewoc-entry-expanded-p entry)
-          (not (ert-ewoc-entry-expanded-p entry)))
+    (setf (ert--ewoc-entry-expanded-p entry)
+          (not (ert--ewoc-entry-expanded-p entry)))
     (ewoc-invalidate ewoc node)))
 
 (defun ert-results-find-test-at-point-other-window ()
@@ -672,12 +670,12 @@ To be used in the ERT results buffer."
       (error "No test at point"))
     (ert-find-test-other-window name)))
 
-(defun ert-test-name-button-action (button)
+(defun ert--test-name-button-action (button)
   "Find the definition of the test BUTTON belongs to, in another window."
   (let ((name (button-get button 'ert-test-name)))
     (ert-find-test-other-window name)))
 
-(defun ert-ewoc-position (ewoc node)
+(defun ert--ewoc-position (ewoc node)
   ;; checkdoc-order: nil
   "Return the position of NODE in EWOC, or nil if NODE is not in EWOC."
   (loop for i from 0
@@ -701,18 +699,18 @@ To be used in the ERT results buffer."
   ;; error log, and perhaps it would be better to have it in a
   ;; separate buffer to keep it visible.
   (interactive)
-  (let ((ewoc ert-results-ewoc)
-        (progress-bar-begin ert-results-progress-bar-button-begin))
-    (cond ((ert-results-test-node-or-null-at-point)
-           (let* ((node (ert-results-test-node-at-point))
-                  (pos (ert-ewoc-position ewoc node)))
+  (let ((ewoc ert--results-ewoc)
+        (progress-bar-begin ert--results-progress-bar-button-begin))
+    (cond ((ert--results-test-node-or-null-at-point)
+           (let* ((node (ert--results-test-node-at-point))
+                  (pos (ert--ewoc-position ewoc node)))
              (goto-char (+ progress-bar-begin pos))))
           ((and (<= progress-bar-begin (point))
                 (< (point) (button-end (button-at progress-bar-begin))))
            (let* ((node (ewoc-nth ewoc (- (point) progress-bar-begin)))
                   (entry (ewoc-data node)))
-             (when (ert-ewoc-entry-hidden-p entry)
-               (setf (ert-ewoc-entry-hidden-p entry) nil)
+             (when (ert--ewoc-entry-hidden-p entry)
+               (setf (ert--ewoc-entry-hidden-p entry) nil)
                (ewoc-invalidate ewoc node))
              (ewoc-goto-node ewoc node)))
           (t
@@ -722,7 +720,7 @@ To be used in the ERT results buffer."
   "Return the name of the test at point as a symbol, or nil if none."
   (block nil
     (when (eql major-mode 'ert-results-mode)
-      (let ((test (ert-results-test-at-point-no-redefinition)))
+      (let ((test (ert--results-test-at-point-no-redefinition)))
         (when (and test (ert-test-name test))
           (return (ert-test-name test)))))
     (let ((thing (thing-at-point 'symbol)))
@@ -731,24 +729,24 @@ To be used in the ERT results buffer."
           (return sym))))
     (return nil)))
 
-(defun ert-results-test-at-point-no-redefinition ()
+(defun ert--results-test-at-point-no-redefinition ()
   "Return the test at point, or nil.
 
 To be used in the ERT results buffer."
   (assert (eql major-mode 'ert-results-mode))
-  (if (ert-results-test-node-or-null-at-point)
-      (let* ((node (ert-results-test-node-at-point))
-             (test (ert-ewoc-entry-test (ewoc-data node))))
+  (if (ert--results-test-node-or-null-at-point)
+      (let* ((node (ert--results-test-node-at-point))
+             (test (ert--ewoc-entry-test (ewoc-data node))))
         test)
-    (let ((progress-bar-begin ert-results-progress-bar-button-begin))
+    (let ((progress-bar-begin ert--results-progress-bar-button-begin))
       (when (and (<= progress-bar-begin (point))
                  (< (point) (button-end (button-at progress-bar-begin))))
         (let* ((test-index (- (point) progress-bar-begin))
-               (test (aref (ert-stats-tests ert-results-stats)
+               (test (aref (ert--stats-tests ert--results-stats)
                            test-index)))
           test)))))
 
-(defun ert-results-test-at-point-allow-redefinition ()
+(defun ert--results-test-at-point-allow-redefinition ()
   "Look up the test at point, and check whether it has been redefined.
 
 To be used in the ERT results buffer.
@@ -766,7 +764,7 @@ If the test has been deleted, returns the old test and the symbol
 If the test is still current, returns the test and the symbol nil.
 
 If there is no test at point, returns a list with two nils."
-  (let ((test (ert-results-test-at-point-no-redefinition)))
+  (let ((test (ert--results-test-at-point-no-redefinition)))
     (cond ((null test)
            `(nil nil))
           ((null (ert-test-name test))
@@ -780,35 +778,35 @@ If there is no test at point, returns a list with two nils."
                    ((null new-test)
                     `(,test deleted))
                    (t
-                    (ert-results-update-after-test-redefinition
-                     (ert-stats-test-index ert-results-stats test)
+                    (ert--results-update-after-test-redefinition
+                     (ert--stats-test-index ert--results-stats test)
                      new-test)
                     `(,new-test redefined))))))))
 
-(defun ert-results-update-after-test-redefinition (test-index new-test)
+(defun ert--results-update-after-test-redefinition (test-index new-test)
   "Update results buffer after the test at index TEST-INDEX has been redefined.
 
 Also updates the stats object.  NEW-TEST is the new test
 definition."
-  (let* ((stats ert-results-stats)
-         (ewoc ert-results-ewoc)
+  (let* ((stats ert--results-stats)
+         (ewoc ert--results-ewoc)
          (node (ewoc-nth ewoc test-index))
          (entry (ewoc-data node))
-         (old-test (aref (ert-stats-tests stats) test-index)))
+         (old-test (aref (ert--stats-tests stats) test-index)))
     (setf
-     (ert-ewoc-entry-test entry) new-test
-     (aref (ert-stats-tests stats) test-index) new-test
-     (aref (ert-stats-test-results stats) test-index) nil
-     (aref ert-results-progress-bar-string test-index) (ert-char-for-test-result
+     (ert--ewoc-entry-test entry) new-test
+     (aref (ert--stats-tests stats) test-index) new-test
+     (aref (ert--stats-test-results stats) test-index) nil
+     (aref ert--results-progress-bar-string test-index) (ert-char-for-test-result
                                                         nil t))
-    (remhash (or (ert-test-name old-test) old-test) (ert-stats-test-map stats))
+    (remhash (or (ert-test-name old-test) old-test) (ert--stats-test-map stats))
     (setf (gethash (or (ert-test-name new-test) new-test)
-                   (ert-stats-test-map stats))
+                   (ert--stats-test-map stats))
           test-index)
     (ewoc-invalidate ewoc node))
   nil)
 
-(defun ert-button-action-position ()
+(defun ert--button-action-position ()
   "The buffer position where the last button action was triggered."
   (cond ((integerp last-command-event)
          (point))
@@ -816,9 +814,9 @@ definition."
          (posn-point (event-start last-command-event)))
         (t (assert nil))))
 
-(defun ert-results-progress-bar-button-action (button)
+(defun ert--results-progress-bar-button-action (button)
   "Jump to details for the test represented by the character clicked in BUTTON."
-  (goto-char (ert-button-action-position))
+  (goto-char (ert--button-action-position))
   (ert-results-jump-between-summary-and-result))
 
 (defun ert-results-rerun-test-at-point ()
@@ -827,11 +825,11 @@ definition."
 To be used in the ERT results buffer."
   (interactive)
   (destructuring-bind (test redefinition-state)
-      (ert-results-test-at-point-allow-redefinition)
+      (ert--results-test-at-point-allow-redefinition)
     (when (null test)
       (error "No test at point"))
-    (let* ((stats ert-results-stats)
-           (pos (ert-stats-test-index stats test))
+    (let* ((stats ert--results-stats)
+           (pos (ert--stats-test-index stats test))
            (progress-message (format "Running %stest %S"
                                      (ecase redefinition-state
                                        ((nil) "")
@@ -848,8 +846,8 @@ To be used in the ERT results buffer."
                 (progn
                   (message "%s..." progress-message)
                   (ert-run-or-rerun-test stats test
-                                         ert-results-listener))
-              (ert-results-update-stats-display ert-results-ewoc stats)
+                                         ert--results-listener))
+              (ert--results-update-stats-display ert--results-ewoc stats)
               (message "%s...%s"
                        progress-message
                        (let ((result (ert-test-most-recent-result test)))
@@ -870,10 +868,10 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((test (ert-results-test-at-point-no-redefinition))
-         (stats ert-results-stats)
-         (pos (ert-stats-test-index stats test))
-         (result (aref (ert-stats-test-results stats) pos)))
+  (let* ((test (ert--results-test-at-point-no-redefinition))
+         (stats ert--results-stats)
+         (pos (ert--stats-test-index stats test))
+         (result (aref (ert--stats-test-results stats) pos)))
     (etypecase result
       (ert-test-passed (error "Test passed, no backtrace available"))
       (ert-test-result-with-condition
@@ -888,7 +886,7 @@ To be used in the ERT results buffer."
            ;; Use unibyte because `debugger-setup-buffer' also does so.
            (set-buffer-multibyte nil)
            (setq truncate-lines t)
-           (ert-print-backtrace backtrace)
+           (ert--print-backtrace backtrace)
            (debugger-make-xrefs)
            (goto-char (point-min))
            (insert "Backtrace for test `")
@@ -900,10 +898,10 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((test (ert-results-test-at-point-no-redefinition))
-         (stats ert-results-stats)
-         (pos (ert-stats-test-index stats test))
-         (result (aref (ert-stats-test-results stats) pos)))
+  (let* ((test (ert--results-test-at-point-no-redefinition))
+         (stats ert--results-stats)
+         (pos (ert--stats-test-index stats test))
+         (result (aref (ert--stats-test-results stats) pos)))
     (let ((buffer (get-buffer-create "*ERT Messages*")))
       (pop-to-buffer buffer)
       (setq buffer-read-only t)
@@ -922,10 +920,10 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((test (ert-results-test-at-point-no-redefinition))
-         (stats ert-results-stats)
-         (pos (ert-stats-test-index stats test))
-         (result (aref (ert-stats-test-results stats) pos)))
+  (let* ((test (ert--results-test-at-point-no-redefinition))
+         (stats ert--results-stats)
+         (pos (ert--stats-test-index stats test))
+         (result (aref (ert--stats-test-results stats) pos)))
     (let ((buffer (get-buffer-create "*ERT list of should forms*")))
       (pop-to-buffer buffer)
       (setq buffer-read-only t)
@@ -940,8 +938,8 @@ To be used in the ERT results buffer."
                 (insert "\n")
                 (insert (format "%s: " i))
                 (let ((begin (point)))
-                  (ert-pp-with-indentation-and-newline form-description)
-                  (ert-make-xrefs-region begin (point)))))
+                  (ert--pp-with-indentation-and-newline form-description)
+                  (ert--make-xrefs-region begin (point)))))
         (goto-char (point-min))
         (insert "`should' forms executed during test `")
         (ert-insert-test-name-button (ert-test-name test))
@@ -957,11 +955,11 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((ewoc ert-results-ewoc)
-         (node (ert-results-test-node-at-point))
+  (let* ((ewoc ert--results-ewoc)
+         (node (ert--results-test-node-at-point))
          (entry (ewoc-data node)))
-    (setf (ert-ewoc-entry-extended-printer-limits-p entry)
-          (not (ert-ewoc-entry-extended-printer-limits-p entry)))
+    (setf (ert--ewoc-entry-extended-printer-limits-p entry)
+          (not (ert--ewoc-entry-extended-printer-limits-p entry)))
     (ewoc-invalidate ewoc node)))
 
 (defun ert-results-pop-to-timings ()
@@ -969,13 +967,13 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (let* ((stats ert-results-stats)
-         (start-times (ert-stats-test-start-times stats))
-         (end-times (ert-stats-test-end-times stats))
+  (let* ((stats ert--results-stats)
+         (start-times (ert--stats-test-start-times stats))
+         (end-times (ert--stats-test-end-times stats))
          (buffer (get-buffer-create "*ERT timings*"))
-         (data (loop for test across (ert-stats-tests stats)
-                     for start-time across (ert-stats-test-start-times stats)
-                     for end-time across (ert-stats-test-end-times stats)
+         (data (loop for test across (ert--stats-tests stats)
+                     for start-time across (ert--stats-test-start-times stats)
+                     for end-time across (ert--stats-test-end-times stats)
                      collect (list test
                                    (float-time (subtract-time end-time
                                                               start-time))))))
@@ -1047,7 +1045,7 @@ To be used in the ERT results buffer."
 
 To be used in the ERT results buffer."
   (interactive)
-  (ert-describe-test (ert-results-test-at-point-no-redefinition)))
+  (ert-describe-test (ert--results-test-at-point-no-redefinition)))
 
 (provide 'ert-ui)
 

@@ -110,45 +110,45 @@ This can be escaped with a backslash to unclude it literally."
 
 ;;; Test buffers
 
-(defvar ert-temp-test-buffer-test nil)
-(make-variable-buffer-local 'ert-temp-test-buffer-test)
-(put 'ert-temp-test-buffer-test 'permanent-local t)
+(defvar ert--temp-test-buffer-test nil)
+(make-variable-buffer-local 'ert--temp-test-buffer-test)
+(put 'ert--temp-test-buffer-test 'permanent-local t)
 
-(defvar ert-temp-test-buffer-file nil)
-(make-variable-buffer-local 'ert-temp-test-buffer-file)
-(put 'ert-temp-test-buffer-file 'permanent-local t)
+(defvar ert--temp-test-buffer-file nil)
+(make-variable-buffer-local 'ert--temp-test-buffer-file)
+(put 'ert--temp-test-buffer-file 'permanent-local t)
 
-(defvar ert-failed-tests-temp-buffers nil)
+(defvar ert--failed-tests-temp-buffers nil)
 
-(defvar ert-list-failed-buffers-name "*Ert Failed Test Buffers*")
+(defvar ert--list-failed-buffers-name "*Ert Failed Test Buffers*")
 
 (defun ert-kill-temp-test-buffers ()
   "Delete test buffers from unsuccessful tests."
   (interactive)
-  (let ((failed (get-buffer ert-list-failed-buffers-name)))
+  (let ((failed (get-buffer ert--list-failed-buffers-name)))
     (when failed (kill-buffer failed)))
-  (dolist (buf ert-failed-tests-temp-buffers)
+  (dolist (buf ert--failed-tests-temp-buffers)
     (when (buffer-live-p buf)
       (kill-buffer buf)))
-  (setq ert-failed-tests-temp-buffers nil))
+  (setq ert--failed-tests-temp-buffers nil))
 
 (defun ert-list-temp-test-buffers ()
   "List test buffers from unsuccessful tests."
   (interactive)
-  (setq ert-failed-tests-temp-buffers
+  (setq ert--failed-tests-temp-buffers
         (delq nil
               (mapcar (lambda (buf)
                         (when (buffer-live-p buf)
                           buf))
-                      ert-failed-tests-temp-buffers)))
+                      ert--failed-tests-temp-buffers)))
   (let ((ert-buffer (get-buffer "*ert*"))
-        (buffers ert-failed-tests-temp-buffers))
+        (buffers ert--failed-tests-temp-buffers))
     (when ert-buffer (setq buffers (cons ert-buffer buffers)))
     (switch-to-buffer
      (let ((Buffer-menu-buffer+size-width 40))
        (list-buffers-noselect nil buffers)))
-    (rename-buffer ert-list-failed-buffers-name t))
-  (unless ert-failed-tests-temp-buffers
+    (rename-buffer ert--list-failed-buffers-name t))
+  (unless ert--failed-tests-temp-buffers
     (message "No test buffers from unsuccessful tests")))
 
 (defvar ert-temp-test-buffer-minor-mode-map
@@ -159,10 +159,10 @@ This can be escaped with a backslash to unclude it literally."
     map))
 (defun ert-temp-test-buffer-go-test ()
   (interactive)
-  (ert-find-test-other-window ert-temp-test-buffer-test))
+  (ert-find-test-other-window ert--temp-test-buffer-test))
 (defun ert-temp-test-buffer-go-file ()
   (interactive)
-  (find-file-other-window ert-temp-test-buffer-file))
+  (find-file-other-window ert--temp-test-buffer-file))
 
 (define-minor-mode ert-temp-test-buffer-minor-mode
   "Helpers for those buffers ..."
@@ -192,11 +192,11 @@ To access these temporary test buffers use
              (error "Can't read %s" ,file-name)
            (error "Can't find %s" ,file-name)))
        (message "Testing with file %s" ,file-name)
-       (push temp-buf ert-failed-tests-temp-buffers)
+       (push temp-buf ert--failed-tests-temp-buffers)
        (with-current-buffer temp-buf
          (ert-temp-test-buffer-minor-mode 1)
-         (setq ert-temp-test-buffer-file ,file-name)
-         (setq ert-temp-test-buffer-test (ert-running-test))
+         (setq ert--temp-test-buffer-file ,file-name)
+         (setq ert--temp-test-buffer-test (ert-running-test))
          ;; Avoid global font lock
          (let ((font-lock-global-modes nil))
            ;; Turn off font lock in buffer

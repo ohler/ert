@@ -37,18 +37,18 @@
 ;;; Self-test that doesn't rely on ERT, for bootstrapping.
 
 ;; This is used to test that bodies actually run.
-(defvar ert-test-body-was-run)
+(defvar ert--test-body-was-run)
 (ert-deftest ert-test-body-runs ()
-  (setq ert-test-body-was-run t))
+  (setq ert--test-body-was-run t))
 
 (defun ert-self-test ()
   "Run ERT's self-tests and make sure they actually ran."
   (let ((window-configuration (current-window-configuration)))
-    (let ((ert-test-body-was-run nil))
+    (let ((ert--test-body-was-run nil))
       ;; The buffer name chosen here should not compete with the default
       ;; results buffer name for completion in `switch-to-buffer'.
       (let ((stats (ert-run-tests-interactively "^ert-" " *ert self-tests*")))
-        (assert ert-test-body-was-run)
+        (assert ert--test-body-was-run)
         (if (zerop (ert-stats-completed-unexpected stats))
             ;; Hide results window only when everything went well.
             (set-window-configuration window-configuration)
@@ -72,7 +72,7 @@ failed or if there was a problem."
 
 ;;; Further tests are defined using ERT.
 
-(ert-deftest ert-nested-test-body-runs ()
+(ert-deftest ert-test-nested-test-body-runs ()
   "Test that nested test bodies run."
   (lexical-let ((was-run nil))
     (let ((test (make-ert-test :body (lambda ()
@@ -345,7 +345,7 @@ failed or if there was a problem."
                   "the error signalled was a subtype of the expected type")))))
     ))
 
-(defmacro ert-test-my-list (&rest args)
+(defmacro ert--test-my-list (&rest args)
   "Don't use this.  Instead, call `list' with ARGS, it does the same thing.
 
 This macro is used to test if macroexpansion in `should' works."
@@ -363,9 +363,9 @@ This macro is used to test if macroexpansion in `should' works."
           (,(lambda () (let ((x nil)) (should-not (not x))))
            (ert-test-failed ((should-not (not x)) :form (not nil) :value t)))
           (,(lambda () (let ((x t) (y nil)) (should-not
-                                             (ert-test-my-list x y))))
+                                             (ert--test-my-list x y))))
            (ert-test-failed
-            ((should-not (ert-test-my-list x y))
+            ((should-not (ert--test-my-list x y))
              :form (list t nil)
              :value (t nil))))
           (,(lambda () (let ((x t)) (should (error "Foo"))))
@@ -408,7 +408,7 @@ This macro is used to test if macroexpansion in `should' works."
     (let ((result (ert-run-test test)))
       (should (ert-test-failed-p result))
       (with-temp-buffer
-        (ert-print-backtrace (ert-test-failed-backtrace result))
+        (ert--print-backtrace (ert-test-failed-backtrace result))
         (goto-char (point-min))
         (end-of-line)
         (let ((first-line (buffer-substring-no-properties (point-min) (point))))
@@ -481,21 +481,21 @@ See `ert-call-with-buffer-renamed' for details."
                    :name "1"
                    :body (lambda ()
                            (should (equal (ert-running-test) outer-test))
-                           (should (equal ert-running-tests
+                           (should (equal ert--running-tests
                                           (list test1 test2 test3
                                                 outer-test)))))
             test2 (make-ert-test
                    :name "2"
                    :body (lambda ()
                            (should (equal (ert-running-test) outer-test))
-                           (should (equal ert-running-tests
+                           (should (equal ert--running-tests
                                           (list test3 test2 outer-test)))
                            (ert-run-test test1)))
             test3 (make-ert-test
                    :name "3"
                    :body (lambda ()
                            (should (equal (ert-running-test) outer-test))
-                           (should (equal ert-running-tests
+                           (should (equal ert--running-tests
                                           (list test3 outer-test)))
                            (ert-run-test test2))))
       (should (ert-test-passed-p (ert-run-test test3))))))
@@ -579,58 +579,58 @@ See `ert-call-with-buffer-renamed' for details."
 
 
 ;;; Tests for utility functions.
-(ert-deftest ert-proper-list-p ()
-  (should (ert-proper-list-p '()))
-  (should (ert-proper-list-p '(1)))
-  (should (ert-proper-list-p '(1 2)))
-  (should (ert-proper-list-p '(1 2 3)))
-  (should (ert-proper-list-p '(1 2 3 4)))
-  (should (not (ert-proper-list-p 'a)))
-  (should (not (ert-proper-list-p '(1 . a))))
-  (should (not (ert-proper-list-p '(1 2 . a))))
-  (should (not (ert-proper-list-p '(1 2 3 . a))))
-  (should (not (ert-proper-list-p '(1 2 3 4 . a))))
+(ert-deftest ert-test-proper-list-p ()
+  (should (ert--proper-list-p '()))
+  (should (ert--proper-list-p '(1)))
+  (should (ert--proper-list-p '(1 2)))
+  (should (ert--proper-list-p '(1 2 3)))
+  (should (ert--proper-list-p '(1 2 3 4)))
+  (should (not (ert--proper-list-p 'a)))
+  (should (not (ert--proper-list-p '(1 . a))))
+  (should (not (ert--proper-list-p '(1 2 . a))))
+  (should (not (ert--proper-list-p '(1 2 3 . a))))
+  (should (not (ert--proper-list-p '(1 2 3 4 . a))))
   (let ((a (list 1)))
     (setf (cdr (last a)) a)
-    (should (not (ert-proper-list-p a))))
+    (should (not (ert--proper-list-p a))))
   (let ((a (list 1 2)))
     (setf (cdr (last a)) a)
-    (should (not (ert-proper-list-p a))))
+    (should (not (ert--proper-list-p a))))
   (let ((a (list 1 2 3)))
     (setf (cdr (last a)) a)
-    (should (not (ert-proper-list-p a))))
+    (should (not (ert--proper-list-p a))))
   (let ((a (list 1 2 3 4)))
     (setf (cdr (last a)) a)
-    (should (not (ert-proper-list-p a))))
+    (should (not (ert--proper-list-p a))))
   (let ((a (list 1 2)))
     (setf (cdr (last a)) (cdr a))
-    (should (not (ert-proper-list-p a))))
+    (should (not (ert--proper-list-p a))))
   (let ((a (list 1 2 3)))
     (setf (cdr (last a)) (cdr a))
-    (should (not (ert-proper-list-p a))))
+    (should (not (ert--proper-list-p a))))
   (let ((a (list 1 2 3 4)))
     (setf (cdr (last a)) (cdr a))
-    (should (not (ert-proper-list-p a))))
+    (should (not (ert--proper-list-p a))))
   (let ((a (list 1 2 3)))
     (setf (cdr (last a)) (cddr a))
-    (should (not (ert-proper-list-p a))))
+    (should (not (ert--proper-list-p a))))
   (let ((a (list 1 2 3 4)))
     (setf (cdr (last a)) (cddr a))
-    (should (not (ert-proper-list-p a))))
+    (should (not (ert--proper-list-p a))))
   (let ((a (list 1 2 3 4)))
     (setf (cdr (last a)) (cdddr a))
-    (should (not (ert-proper-list-p a)))))
+    (should (not (ert--proper-list-p a)))))
 
-(ert-deftest ert-parse-keys-and-body ()
-  (should (equal (ert-parse-keys-and-body '(foo)) '(nil (foo))))
-  (should (equal (ert-parse-keys-and-body '(:bar foo)) '((:bar foo) nil)))
-  (should (equal (ert-parse-keys-and-body '(:bar foo a (b)))
+(ert-deftest ert-test-parse-keys-and-body ()
+  (should (equal (ert--parse-keys-and-body '(foo)) '(nil (foo))))
+  (should (equal (ert--parse-keys-and-body '(:bar foo)) '((:bar foo) nil)))
+  (should (equal (ert--parse-keys-and-body '(:bar foo a (b)))
                  '((:bar foo) (a (b)))))
-  (should (equal (ert-parse-keys-and-body '(:bar foo :a (b)))
+  (should (equal (ert--parse-keys-and-body '(:bar foo :a (b)))
                  '((:bar foo :a (b)) nil)))
-  (should (equal (ert-parse-keys-and-body '(bar foo :a (b)))
+  (should (equal (ert--parse-keys-and-body '(bar foo :a (b)))
                  '(nil (bar foo :a (b)))))
-  (should-error (ert-parse-keys-and-body '(:bar foo :a))))
+  (should-error (ert--parse-keys-and-body '(:bar foo :a))))
 
 
 (ert-deftest ert-test-run-tests-interactively ()
@@ -690,19 +690,19 @@ See `ert-call-with-buffer-renamed' for details."
                                   (buffer-string)))))))))
 
 (ert-deftest ert-test-special-operator-p ()
-  (should (ert-special-operator-p 'if))
-  (should-not (ert-special-operator-p 'car))
-  (should-not (ert-special-operator-p 'ert-special-operator-p))
-  (let ((b (ert-gensym)))
-    (should-not (ert-special-operator-p b))
+  (should (ert--special-operator-p 'if))
+  (should-not (ert--special-operator-p 'car))
+  (should-not (ert--special-operator-p 'ert--special-operator-p))
+  (let ((b (ert--gensym)))
+    (should-not (ert--special-operator-p b))
     (fset b 'if)
-    (should (ert-special-operator-p b))))
+    (should (ert--special-operator-p b))))
 
 (ert-deftest ert-test-builtin-message-log-flushing ()
   "This test attempts to demonstrate that there is no way to
 force immediate truncation of the *Messages* buffer from Lisp
 \(and hence justifies the existence of
-`ert-force-message-log-buffer-truncation'\): The only way that
+`ert--force-message-log-buffer-truncation'\): The only way that
 came to my mind was \(message \"\"\), which doesn't have the
 desired effect."
   :tags '(:causes-redisplay)
@@ -746,7 +746,7 @@ desired effect."
                (let ((message-log-max t))
                  (body))
                (let ((message-log-max x))
-                 (ert-force-message-log-buffer-truncation))
+                 (ert--force-message-log-buffer-truncation))
                (with-current-buffer "*Messages*"
                  (buffer-string)))))
     (loop for x in '(0 1 2 3 4 t) do
@@ -796,37 +796,37 @@ desired effect."
                        ))))))
 
 (ert-deftest ert-test-remprop ()
-  (let ((x (ert-gensym)))
+  (let ((x (ert--gensym)))
     (should (equal (symbol-plist x) '()))
     ;; Remove nonexistent property on empty plist.
-    (ert-remprop x 'b)
+    (ert--remprop x 'b)
     (should (equal (symbol-plist x) '()))
     (put x 'a 1)
     (should (equal (symbol-plist x) '(a 1)))
     ;; Remove nonexistent property on nonempty plist.
-    (ert-remprop x 'b)
+    (ert--remprop x 'b)
     (should (equal (symbol-plist x) '(a 1)))
     (put x 'b 2)
     (put x 'c 3)
     (put x 'd 4)
     (should (equal (symbol-plist x) '(a 1 b 2 c 3 d 4)))
     ;; Remove property that is neither first nor last.
-    (ert-remprop x 'c)
+    (ert--remprop x 'c)
     (should (equal (symbol-plist x) '(a 1 b 2 d 4)))
     ;; Remove last property from a plist of length >1.
-    (ert-remprop x 'd)
+    (ert--remprop x 'd)
     (should (equal (symbol-plist x) '(a 1 b 2)))
     ;; Remove first property from a plist of length >1.
-    (ert-remprop x 'a)
+    (ert--remprop x 'a)
     (should (equal (symbol-plist x) '(b 2)))
     ;; Remove property when there is only one.
-    (ert-remprop x 'b)
+    (ert--remprop x 'b)
     (should (equal (symbol-plist x) '()))))
 
 (ert-deftest ert-test-remove-if-not ()
   (let ((list (list 'a 'b 'c 'd))
         (i 0))
-    (let ((result (ert-remove-if-not (lambda (x)
+    (let ((result (ert--remove-if-not (lambda (x)
                                        (should (eql x (nth i list)))
                                        (incf i)
                                        (member i '(2 3)))
@@ -835,14 +835,14 @@ desired effect."
       (should (equal result '(b c)))
       (should (equal list '(a b c d)))))
   (should (equal '()
-                 (ert-remove-if-not (lambda (x) (should nil)) '()))))
+                 (ert--remove-if-not (lambda (x) (should nil)) '()))))
 
 (ert-deftest ert-test-remove* ()
   (let ((list (list 'a 'b 'c 'd))
         (key-index 0)
         (test-index 0))
     (let ((result
-           (ert-remove* 'foo list
+           (ert--remove* 'foo list
                         :key (lambda (x)
                                (should (eql x (nth key-index list)))
                                (prog1
@@ -861,7 +861,7 @@ desired effect."
       (should (equal list '(a b c d)))))
   (let ((x (cons nil nil))
         (y (cons nil nil)))
-    (should (equal (ert-remove* x (list x y))
+    (should (equal (ert--remove* x (list x y))
                    ;; or (list x), since we use `equal' -- the
                    ;; important thing is that only one element got
                    ;; removed, this proves that the default test is
@@ -876,62 +876,62 @@ desired effect."
     (let ((e '())
           (a (list 'a 'b sym nil "" "x" c1 c2))
           (b (list c1 'y 'b sym 'x)))
-      (should (equal (ert-set-difference e e) e))
-      (should (equal (ert-set-difference a e) a))
-      (should (equal (ert-set-difference e a) e))
-      (should (equal (ert-set-difference a a) e))
-      (should (equal (ert-set-difference b e) b))
-      (should (equal (ert-set-difference e b) e))
-      (should (equal (ert-set-difference b b) e))
-      (should (equal (ert-set-difference a b) (list 'a nil "" "x" c2)))
-      (should (equal (ert-set-difference b a) (list 'y 'x)))
+      (should (equal (ert--set-difference e e) e))
+      (should (equal (ert--set-difference a e) a))
+      (should (equal (ert--set-difference e a) e))
+      (should (equal (ert--set-difference a a) e))
+      (should (equal (ert--set-difference b e) b))
+      (should (equal (ert--set-difference e b) e))
+      (should (equal (ert--set-difference b b) e))
+      (should (equal (ert--set-difference a b) (list 'a nil "" "x" c2)))
+      (should (equal (ert--set-difference b a) (list 'y 'x)))
 
       ;; We aren't testing whether this is really using `eq' rather than `eql'.
-      (should (equal (ert-set-difference-eq e e) e))
-      (should (equal (ert-set-difference-eq a e) a))
-      (should (equal (ert-set-difference-eq e a) e))
-      (should (equal (ert-set-difference-eq a a) e))
-      (should (equal (ert-set-difference-eq b e) b))
-      (should (equal (ert-set-difference-eq e b) e))
-      (should (equal (ert-set-difference-eq b b) e))
-      (should (equal (ert-set-difference-eq a b) (list 'a nil "" "x" c2)))
-      (should (equal (ert-set-difference-eq b a) (list 'y 'x)))
+      (should (equal (ert--set-difference-eq e e) e))
+      (should (equal (ert--set-difference-eq a e) a))
+      (should (equal (ert--set-difference-eq e a) e))
+      (should (equal (ert--set-difference-eq a a) e))
+      (should (equal (ert--set-difference-eq b e) b))
+      (should (equal (ert--set-difference-eq e b) e))
+      (should (equal (ert--set-difference-eq b b) e))
+      (should (equal (ert--set-difference-eq a b) (list 'a nil "" "x" c2)))
+      (should (equal (ert--set-difference-eq b a) (list 'y 'x)))
 
-      (should (equal (ert-union e e) e))
-      (should (equal (ert-union a e) a))
-      (should (equal (ert-union e a) a))
-      (should (equal (ert-union a a) a))
-      (should (equal (ert-union b e) b))
-      (should (equal (ert-union e b) b))
-      (should (equal (ert-union b b) b))
-      (should (equal (ert-union a b) (list 'a 'b sym nil "" "x" c1 c2 'y 'x)))
-      (should (equal (ert-union b a) (list c1 'y 'b sym 'x 'a nil "" "x" c2)))
+      (should (equal (ert--union e e) e))
+      (should (equal (ert--union a e) a))
+      (should (equal (ert--union e a) a))
+      (should (equal (ert--union a a) a))
+      (should (equal (ert--union b e) b))
+      (should (equal (ert--union e b) b))
+      (should (equal (ert--union b b) b))
+      (should (equal (ert--union a b) (list 'a 'b sym nil "" "x" c1 c2 'y 'x)))
+      (should (equal (ert--union b a) (list c1 'y 'b sym 'x 'a nil "" "x" c2)))
 
-      (should (equal (ert-intersection e e) e))
-      (should (equal (ert-intersection a e) e))
-      (should (equal (ert-intersection e a) e))
-      (should (equal (ert-intersection a a) a))
-      (should (equal (ert-intersection b e) e))
-      (should (equal (ert-intersection e b) e))
-      (should (equal (ert-intersection b b) b))
-      (should (equal (ert-intersection a b) (list 'b sym c1)))
-      (should (equal (ert-intersection b a) (list c1 'b sym))))))
+      (should (equal (ert--intersection e e) e))
+      (should (equal (ert--intersection a e) e))
+      (should (equal (ert--intersection e a) e))
+      (should (equal (ert--intersection a a) a))
+      (should (equal (ert--intersection b e) e))
+      (should (equal (ert--intersection e b) e))
+      (should (equal (ert--intersection b b) b))
+      (should (equal (ert--intersection a b) (list 'b sym c1)))
+      (should (equal (ert--intersection b a) (list c1 'b sym))))))
 
 (ert-deftest ert-test-gensym ()
-  ;; Since the expansion of `should' calls `ert-gensym' and thus has a
-  ;; side-effect on `ert-gensym-counter', we have to make sure all
+  ;; Since the expansion of `should' calls `ert--gensym' and thus has a
+  ;; side-effect on `ert--gensym-counter', we have to make sure all
   ;; macros in our test body are expanded before we rebind
-  ;; `ert-gensym-counter' and run the body.  Otherwise, the test would
+  ;; `ert--gensym-counter' and run the body.  Otherwise, the test would
   ;; fail if run interpreted.
   (let ((body (byte-compile
                '(lambda ()
-                  (should (equal (symbol-name (ert-gensym)) "G0"))
-                  (should (equal (symbol-name (ert-gensym)) "G1"))
-                  (should (equal (symbol-name (ert-gensym)) "G2"))
-                  (should (equal (symbol-name (ert-gensym "foo")) "foo3"))
-                  (should (equal (symbol-name (ert-gensym "bar")) "bar4"))
-                  (should (equal ert-gensym-counter 5))))))
-    (let ((ert-gensym-counter 0))
+                  (should (equal (symbol-name (ert--gensym)) "G0"))
+                  (should (equal (symbol-name (ert--gensym)) "G1"))
+                  (should (equal (symbol-name (ert--gensym)) "G2"))
+                  (should (equal (symbol-name (ert--gensym "foo")) "foo3"))
+                  (should (equal (symbol-name (ert--gensym "bar")) "bar4"))
+                  (should (equal ert--gensym-counter 5))))))
+    (let ((ert--gensym-counter 0))
       (funcall body))))
 
 (ert-deftest ert-test-coerce-to-vector ()
@@ -939,103 +939,103 @@ desired effect."
          (b (vector 1 a 3))
          (c (list))
          (d (list b a)))
-    (should (eql (ert-coerce-to-vector a) a))
-    (should (eql (ert-coerce-to-vector b) b))
-    (should (equal (ert-coerce-to-vector c) (vector)))
-    (should (equal (ert-coerce-to-vector d) (vector b a)))))
+    (should (eql (ert--coerce-to-vector a) a))
+    (should (eql (ert--coerce-to-vector b) b))
+    (should (equal (ert--coerce-to-vector c) (vector)))
+    (should (equal (ert--coerce-to-vector d) (vector b a)))))
 
 (ert-deftest ert-test-string-position ()
-  (should (eql (ert-string-position ?x "") nil))
-  (should (eql (ert-string-position ?a "abc") 0))
-  (should (eql (ert-string-position ?b "abc") 1))
-  (should (eql (ert-string-position ?c "abc") 2))
-  (should (eql (ert-string-position ?d "abc") nil))
-  (should (eql (ert-string-position ?A "abc") nil)))
+  (should (eql (ert--string-position ?x "") nil))
+  (should (eql (ert--string-position ?a "abc") 0))
+  (should (eql (ert--string-position ?b "abc") 1))
+  (should (eql (ert--string-position ?c "abc") 2))
+  (should (eql (ert--string-position ?d "abc") nil))
+  (should (eql (ert--string-position ?A "abc") nil)))
 
-(ert-deftest ert-mismatch ()
-  (should (eql (ert-mismatch "" "") nil))
-  (should (eql (ert-mismatch "" "a") 0))
-  (should (eql (ert-mismatch "a" "a") nil))
-  (should (eql (ert-mismatch "ab" "a") 1))
-  (should (eql (ert-mismatch "Aa" "aA") 0))
-  (should (eql (ert-mismatch '(a b c) '(a b d)) 2)))
+(ert-deftest ert-test-mismatch ()
+  (should (eql (ert--mismatch "" "") nil))
+  (should (eql (ert--mismatch "" "a") 0))
+  (should (eql (ert--mismatch "a" "a") nil))
+  (should (eql (ert--mismatch "ab" "a") 1))
+  (should (eql (ert--mismatch "Aa" "aA") 0))
+  (should (eql (ert--mismatch '(a b c) '(a b d)) 2)))
 
 (ert-deftest ert-test-string-first-line ()
-  (should (equal (ert-string-first-line "") ""))
-  (should (equal (ert-string-first-line "abc") "abc"))
-  (should (equal (ert-string-first-line "abc\n") "abc"))
-  (should (equal (ert-string-first-line "foo\nbar") "foo"))
-  (should (equal (ert-string-first-line " foo\nbar\nbaz\n") " foo")))
+  (should (equal (ert--string-first-line "") ""))
+  (should (equal (ert--string-first-line "abc") "abc"))
+  (should (equal (ert--string-first-line "abc\n") "abc"))
+  (should (equal (ert--string-first-line "foo\nbar") "foo"))
+  (should (equal (ert--string-first-line " foo\nbar\nbaz\n") " foo")))
 
 (ert-deftest ert-test-explain-not-equal ()
-  (should (equal (ert-explain-not-equal nil 'foo)
+  (should (equal (ert--explain-not-equal nil 'foo)
                  '(different-atoms nil foo)))
-  (should (equal (ert-explain-not-equal '(a a) '(a b))
+  (should (equal (ert--explain-not-equal '(a a) '(a b))
                  '(list-elt 1 (different-atoms a b))))
-  (should (equal (ert-explain-not-equal '(1 48) '(1 49))
+  (should (equal (ert--explain-not-equal '(1 48) '(1 49))
                  '(list-elt 1 (different-atoms (48 "#x30" "?0")
                                                (49 "#x31" "?1")))))
-  (should (equal (ert-explain-not-equal 'nil '(a))
+  (should (equal (ert--explain-not-equal 'nil '(a))
                  '(different-types nil (a))))
-  (should (equal (ert-explain-not-equal '(a b c) '(a b c d))
+  (should (equal (ert--explain-not-equal '(a b c) '(a b c d))
                  '(proper-lists-of-different-length 3 4 (a b c) (a b c d)
                                                     first-mismatch-at 3)))
   (let ((sym (make-symbol "a")))
-    (should (equal (ert-explain-not-equal 'a sym)
+    (should (equal (ert--explain-not-equal 'a sym)
                    `(different-symbols-with-the-same-name a ,sym)))))
 
 (ert-deftest ert-test-explain-not-equal-improper-list ()
-  (should (equal (ert-explain-not-equal '(a . b) '(a . c))
+  (should (equal (ert--explain-not-equal '(a . b) '(a . c))
                  '(cdr (different-atoms b c)))))
 
 (ert-deftest ert-test-significant-plist-keys ()
-  (should (equal (ert-significant-plist-keys '()) '()))
-  (should (equal (ert-significant-plist-keys '(a b c d e f c g p q r nil s t))
+  (should (equal (ert--significant-plist-keys '()) '()))
+  (should (equal (ert--significant-plist-keys '(a b c d e f c g p q r nil s t))
                  '(a c e p s))))
 
 (ert-deftest ert-test-plist-difference-explanation ()
-  (should (equal (ert-plist-difference-explanation
+  (should (equal (ert--plist-difference-explanation
                   '(a b c nil) '(a b))
                  nil))
-  (should (equal (ert-plist-difference-explanation
+  (should (equal (ert--plist-difference-explanation
                   '(a b c t) '(a b))
                  '(different-properties-for-key c (different-atoms t nil))))
-  (should (equal (ert-plist-difference-explanation
+  (should (equal (ert--plist-difference-explanation
                   '(a b c t) '(c nil a b))
                  '(different-properties-for-key c (different-atoms t nil))))
-  (should (equal (ert-plist-difference-explanation
+  (should (equal (ert--plist-difference-explanation
                   '(a b c (foo . bar)) '(c (foo . baz) a b))
                  '(different-properties-for-key c (cdr
                                                    (different-atoms bar baz))))))
 
 (ert-deftest ert-test-abbreviate-string ()
-  (should (equal (ert-abbreviate-string "foo" 4 nil) "foo"))
-  (should (equal (ert-abbreviate-string "foo" 3 nil) "foo"))
-  (should (equal (ert-abbreviate-string "foo" 3 nil) "foo"))
-  (should (equal (ert-abbreviate-string "foo" 2 nil) "fo"))
-  (should (equal (ert-abbreviate-string "foo" 1 nil) "f"))
-  (should (equal (ert-abbreviate-string "foo" 0 nil) ""))
-  (should (equal (ert-abbreviate-string "bar" 4 t) "bar"))
-  (should (equal (ert-abbreviate-string "bar" 3 t) "bar"))
-  (should (equal (ert-abbreviate-string "bar" 3 t) "bar"))
-  (should (equal (ert-abbreviate-string "bar" 2 t) "ar"))
-  (should (equal (ert-abbreviate-string "bar" 1 t) "r"))
-  (should (equal (ert-abbreviate-string "bar" 0 t) "")))
+  (should (equal (ert--abbreviate-string "foo" 4 nil) "foo"))
+  (should (equal (ert--abbreviate-string "foo" 3 nil) "foo"))
+  (should (equal (ert--abbreviate-string "foo" 3 nil) "foo"))
+  (should (equal (ert--abbreviate-string "foo" 2 nil) "fo"))
+  (should (equal (ert--abbreviate-string "foo" 1 nil) "f"))
+  (should (equal (ert--abbreviate-string "foo" 0 nil) ""))
+  (should (equal (ert--abbreviate-string "bar" 4 t) "bar"))
+  (should (equal (ert--abbreviate-string "bar" 3 t) "bar"))
+  (should (equal (ert--abbreviate-string "bar" 3 t) "bar"))
+  (should (equal (ert--abbreviate-string "bar" 2 t) "ar"))
+  (should (equal (ert--abbreviate-string "bar" 1 t) "r"))
+  (should (equal (ert--abbreviate-string "bar" 0 t) "")))
 
 (ert-deftest ert-test-explain-not-equal-string-properties ()
   (should
-   (equal (ert-explain-not-equal-including-properties #("foo" 0 1 (a b))
+   (equal (ert--explain-not-equal-including-properties #("foo" 0 1 (a b))
                                                       "foo")
           '(char 0 "f"
                  (different-properties-for-key a (different-atoms b nil))
                  context-before ""
                  context-after "oo")))
-  (should (equal (ert-explain-not-equal-including-properties #("foo" 1 3 (a b))
+  (should (equal (ert--explain-not-equal-including-properties #("foo" 1 3 (a b))
                                                              #("goo" 0 1 (c d)))
                  '(array-elt 0 (different-atoms (?f "#x66" "?f")
                                                 (?g "#x67" "?g")))))
   (should
-   (equal (ert-explain-not-equal-including-properties
+   (equal (ert--explain-not-equal-including-properties
            #("foo" 0 1 (a b c d) 1 3 (a b))
            #("foo" 0 1 (c d a b) 1 2 (a foo)))
           '(char 1 "o" (different-properties-for-key a (different-atoms b foo))

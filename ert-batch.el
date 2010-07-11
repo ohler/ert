@@ -51,8 +51,8 @@ Returns the stats object."
        (run-started
         (destructuring-bind (stats) event-args
           (message "Running %s tests (%s)"
-                   (length (ert-stats-tests stats))
-                   (ert-format-time-iso8601 (ert-stats-start-time stats)))))
+                   (length (ert--stats-tests stats))
+                   (ert--format-time-iso8601 (ert--stats-start-time stats)))))
        (run-ended
         (destructuring-bind (stats abortedp) event-args
           (let ((unexpected (ert-stats-completed-unexpected stats)))
@@ -65,10 +65,10 @@ Returns the stats object."
                      (if (zerop unexpected)
                          ""
                        (format ", %s unexpected" unexpected))
-                     (ert-format-time-iso8601 (ert-stats-end-time stats)))
+                     (ert--format-time-iso8601 (ert--stats-end-time stats)))
             (unless (zerop unexpected)
               (message "%s unexpected results:" unexpected)
-              (loop for test across (ert-stats-tests stats)
+              (loop for test across (ert--stats-tests stats)
                     for result = (ert-test-most-recent-result test) do
                     (when (not (ert-test-result-expected-p test result))
                       (message "%9s  %S"
@@ -84,7 +84,7 @@ Returns the stats object."
             (ert-test-result-with-condition
              (message "Test %S backtrace:" (ert-test-name test))
              (with-temp-buffer
-               (ert-print-backtrace (ert-test-result-with-condition-backtrace
+               (ert--print-backtrace (ert-test-result-with-condition-backtrace
                                      result))
                (goto-char (point-min))
                (while (not (eobp))
@@ -101,7 +101,7 @@ Returns the stats object."
                      (print-level 5)
                      (print-length 10))
                  (let ((begin (point)))
-                   (ert-pp-with-indentation-and-newline
+                   (ert--pp-with-indentation-and-newline
                     (ert-test-result-with-condition-condition result))))
                (goto-char (1- (point-max)))
                (assert (looking-at "\n"))
@@ -109,7 +109,7 @@ Returns the stats object."
                (message "Test %S condition:" (ert-test-name test))
                (message "%s" (buffer-string))))
             (ert-test-aborted-with-non-local-exit))
-          (let* ((max (prin1-to-string (length (ert-stats-tests stats))))
+          (let* ((max (prin1-to-string (length (ert--stats-tests stats))))
                  (format-string (concat "%9s  %"
                                         (prin1-to-string (length max))
                                         "s/" max "  %S")))
@@ -117,7 +117,7 @@ Returns the stats object."
                      (ert-string-for-test-result result
                                                  (ert-test-result-expected-p
                                                   test result))
-                     (1+ (ert-stats-test-index stats test))
+                     (1+ (ert--stats-test-index stats test))
                      (ert-test-name test)))))))))
 
 ;;;###autoload
