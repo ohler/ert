@@ -101,14 +101,13 @@
                  "foo  baz")))
 
 (ert-deftest ert-propertized-string ()
-  (should (equal-including-properties
-           (ert-propertized-string "a" '(a b) "b" '(a nil c t) "cd")
+  (should (ert-equal-including-properties
+           (ert-propertized-string "a" '(a b) "b" '(c t) "cd")
            #("abcd" 1 2 (a b) 2 4 (c t))))
-  (should (equal-including-properties
-           (ert-propertized-string "foo "
-                                   '(face italic) "bar" '(face nil)
-                                   " baz")
-           #("foo bar baz" 4 7 (face italic)))))
+  (should (ert-equal-including-properties
+           (ert-propertized-string "foo " '(face italic) "bar" " baz" nil
+                                   " quux")
+           #("foo bar baz quux" 4 11 (face italic)))))
 
 
 ;;; Tests for ERT itself that require test features from ert-exp.el.
@@ -143,7 +142,7 @@
                                        'ert-test-failed
                                      'button))
                   ".F"
-                  '(category nil button nil face nil)
+                  nil
                   "\n\n"
                   `(category ,(button-category-symbol
                                'ert-results-expand-collapse-button)
@@ -152,14 +151,14 @@
                                        'ert-test-failed
                                      'button))
                   "F"
-                  '(category nil button nil face nil)
+                  nil
                   " "
                   `(category ,(button-category-symbol
                                'ert-test-name-button)
                              button (t)
                              ert-test-name failing-test)
                   "failing-test"
-                  '(category nil button nil ert-test-name nil face nil)
+                  nil
                   "\n    (ert-test-failed \"failure message\")\n\n\n"
                   )))
         (save-window-excursion
