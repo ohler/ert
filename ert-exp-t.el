@@ -28,6 +28,8 @@
 
 (require 'ert)
 (require 'ert-exp)
+(eval-when-compile
+  (require 'cl))
 
 ;;; Predicates
 
@@ -119,11 +121,47 @@
                                      :body (lambda () (ert-fail
                                                        "failure message")))))
     (let ((ert-debug-on-error nil))
-      (let* ((buffer-name (generate-new-buffer-name " *ert-test-run-tests*"))
+      (let* ((buffer-name (generate-new-buffer-name "*ert-test-run-tests*"))
              (messages nil)
              (mock-message-fn
               (lambda (format-string &rest args)
                 (push (apply #'format format-string args) messages))))
+        (flet ((expected-string (with-font-lock-p)
+                 (ert-propertized-string
+                  "Selector: (member <passing-test> <failing-test>)\n"
+                  "Passed: 1\n"
+                  "Failed: 1 (1 unexpected)\n"
+                  "Error:  0\n"
+                  "Total:  2/2\n\n"
+                  "Started at:\n"
+                  "Finished.\n"
+                  "Finished at:\n\n"
+                  `(category ,(button-category-symbol
+                               'ert-results-progress-bar-button)
+                             button (t)
+                             face ,(if with-font-lock-p
+                                       'ert-test-failed
+                                     'button))
+                  ".F"
+                  '(category nil button nil face nil)
+                  "\n\n"
+                  `(category ,(button-category-symbol
+                               'ert-results-expand-collapse-button)
+                             button (t)
+                             face ,(if with-font-lock-p
+                                       'ert-test-failed
+                                     'button))
+                  "F"
+                  '(category nil button nil face nil)
+                  " "
+                  `(category ,(button-category-symbol
+                               'ert-test-name-button)
+                             button (t)
+                             ert-test-name failing-test)
+                  "failing-test"
+                  '(category nil button nil ert-test-name nil face nil)
+                  "\n    (ert-test-failed \"failure message\")\n\n\n"
+                  )))
         (save-window-excursion
           (unwind-protect
               (let ((case-fold-search nil))
@@ -134,41 +172,23 @@
                                             "Ran 2 tests, 1 results were "
                                             "as expected, 1 unexpected"))))
                 (with-current-buffer buffer-name
+                  (font-lock-mode 0)
                   (should (ert-equal-including-properties
                            (ert-filter-string (buffer-string)
                                               '("Started at:\\(.*\\)$" 1)
                                               '("Finished at:\\(.*\\)$" 1))
-                           (ert-propertized-string
-                            "Selector: (member <passing-test> <failing-test>)\n"
-                            "Passed: 1\n"
-                            "Failed: 1 (1 unexpected)\n"
-                            "Error:  0\n"
-                            "Total:  2/2\n\n"
-                            "Started at:\n"
-                            "Finished.\n"
-                            "Finished at:\n\n"
-                            `(category ,(button-category-symbol
-                                         'ert-results-progress-bar-button)
-                                       button (t))
-                            ".F"
-                            '(category nil button nil)
-                            "\n\n"
-                            `(category ,(button-category-symbol
-                                         'ert-results-expand-collapse-button)
-                                       button (t))
-                            "F"
-                            '(category nil button nil)
-                            " "
-                            `(category ,(button-category-symbol
-                                         'ert-test-name-button)
-                                       button (t)
-                                       ert-test-name failing-test)
-                            "failing-test"
-                            '(category nil button nil ert-test-name nil)
-                            "\n    (ert-test-failed \"failure message\")\n\n\n"
-                            )))))
+                           (expected-string nil)))
+                  ;; `font-lock-mode' only works if interactive, so
+                  ;; pretend we are.
+                  (let ((noninteractive nil))
+                    (font-lock-mode 1))
+                  (should (ert-equal-including-properties
+                           (ert-filter-string (buffer-string)
+                                              '("Started at:\\(.*\\)$" 1)
+                                              '("Finished at:\\(.*\\)$" 1))
+                           (expected-string t)))))
             (when (get-buffer buffer-name)
-              (kill-buffer buffer-name))))))))
+              (kill-buffer buffer-name)))))))))
 
 (provide 'ert-exp-t)
 

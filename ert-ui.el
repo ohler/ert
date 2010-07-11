@@ -35,6 +35,35 @@
 (require 'help)
 
 
+;;; UI customization options.
+
+(defgroup ert ()
+  "ERT, the Emacs Lisp regression testing tool."
+  :prefix "ert-"
+  :group 'lisp)
+
+(defface ert-test-passed '((((class color) (background light))
+                            :background "green1")
+                           (((class color) (background dark))
+                            :background "green3"))
+  "Face used for passed tests in the ERT results buffer."
+  :group 'ert)
+
+(defface ert-test-failed '((((class color) (background light))
+                            :background "red1")
+                           (((class color) (background dark))
+                            :background "red3"))
+  "Face used for failed tests in the ERT results buffer."
+  :group 'ert)
+
+(defface ert-test-error '((((class color) (background light))
+                           :background "red1")
+                          (((class color) (background dark))
+                           :background "red3"))
+  "Face used for tests with errors in the ERT results buffer."
+  :group 'ert)
+
+
 ;;; Some basic interactive functions.
 
 (defun ert-read-test-name (prompt &optional default history
@@ -154,7 +183,9 @@ Nothing more than an interactive interface to `ert-make-test-unbound'."
 
 Also sets `ert-results-progress-bar-button-begin'."
   (let ((run-count (ert-stats-completed stats))
-        (results-buffer (current-buffer)))
+        (results-buffer (current-buffer))
+        ;; Need to save buffer-local value.
+        (font-lock font-lock-mode))
     (ewoc-set-hf
      ewoc
      ;; header
@@ -223,7 +254,10 @@ Also sets `ert-results-progress-bar-button-begin'."
                                     ert-results-progress-bar-string)))
          (let ((progress-bar-button-begin
                 (insert-text-button progress-bar-string
-                                    :type 'ert-results-progress-bar-button)))
+                                    :type 'ert-results-progress-bar-button
+                                    'face (or (and font-lock
+                                                   (ert-face-for-stats stats))
+                                              'button))))
            ;; The header gets copied verbatim to the results buffer,
            ;; and all positions remain the same, so
            ;; `progress-bar-button-begin' will be the right position
@@ -289,6 +323,29 @@ BEGIN and END specify a region in the current buffer."
 The return value does not include the line terminator."
   (substring s 0 (ert-string-position ?\n s)))
 
+(defun ert-face-for-test-result (result)
+  "Return a face that represents the test result RESULT.
+
+RESULT can either be a test result object or one of the symbols
+`passed', `failed', `error', and nil."
+  (etypecase result
+    ((or ert-test-passed (member passed)) 'ert-test-passed)
+    ((or ert-test-failed (member failed)) 'ert-test-failed)
+    ((or ert-test-error (member error)) 'ert-test-error)
+    (null 'default)
+    (ert-test-aborted-with-non-local-exit 'ert-test-error)))
+
+(defun ert-face-for-stats (stats)
+  "Return a face that represents STATS."
+  (ert-face-for-test-result
+   (cond ((ert-stats-aborted-p stats) 'nil)
+         ((plusp (ert-stats-error-unexpected stats)) 'error)
+         ((plusp (ert-stats-failed-unexpected stats)) 'failed)
+         ((eql (ert-stats-completed-expected stats) (ert-stats-total stats))
+          (assert (zerop (ert-stats-completed-unexpected stats)) t)
+          'passed)
+         (t 'nil))))
+
 (defun ert-print-test-for-ewoc (entry)
   "The ewoc print function for ewoc test entries.  ENTRY is the entry to print."
   (let* ((test (ert-ewoc-entry-test entry))
@@ -307,7 +364,10 @@ The return value does not include the line terminator."
                                         result
                                         (ert-test-result-expected-p test
                                                                     result)))
-                               :type 'ert-results-expand-collapse-button)
+                               :type 'ert-results-expand-collapse-button
+                               'face (or (and font-lock-mode
+                                         (ert-face-for-test-result result))
+                                         'button))
            (insert " ")
            (ert-insert-test-name-button (ert-test-name test))
            (insert "\n")
@@ -336,6 +396,15 @@ The return value does not include the line terminator."
              (insert "\n")))))
   nil)
 
+(defun ert-results-font-lock-function (enabledp)
+  "Redraw the ERT results buffer after font-lock-mode was switched on or off.
+
+ENABLEDP is true if font-lock-mode is switched on, false
+otherwise."
+  (ert-results-update-ewoc-hf ert-results-ewoc ert-results-stats)
+  (ewoc-refresh ert-results-ewoc)
+  (font-lock-default-function enabledp))
+
 (defun ert-setup-results-buffer (stats listener buffer-name)
   "Set up a test results buffer.
 
@@ -349,6 +418,13 @@ BUFFER-NAME, if non-nil, is the buffer name to use."
         (buffer-disable-undo)
         (erase-buffer)
         (ert-results-mode)
+        ;; Erase buffer again in case switching out of the previous
+        ;; mode inserted anything.  (This happens e.g. when switching
+        ;; from ert-results-mode to ert-results-mode when
+        ;; font-lock-mode turns itself off in change-major-mode-hook.)
+        (erase-buffer)
+        (set (make-local-variable 'font-lock-function)
+             'ert-results-font-lock-function)
         (let ((ewoc (ewoc-create 'ert-print-test-for-ewoc nil nil t)))
           (set (make-local-variable 'ert-results-ewoc) ewoc)
           (set (make-local-variable 'ert-results-stats) stats)
