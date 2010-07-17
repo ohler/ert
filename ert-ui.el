@@ -330,7 +330,7 @@ non-nil, returns the face for expected results.."
   "The ewoc print function for ewoc test entries.  ENTRY is the entry to print."
   (let* ((test (ert--ewoc-entry-test entry))
          (stats ert--results-stats)
-         (result (let ((pos (ert--stats-test-index stats test)))
+         (result (let ((pos (ert--stats-test-pos stats test)))
                    (assert pos)
                    (aref (ert--stats-test-results stats) pos)))
          (hiddenp (ert--ewoc-entry-hidden-p entry))
@@ -481,7 +481,7 @@ and how to display message."
                (destructuring-bind (stats test) event-args
                  (with-current-buffer buffer
                    (let* ((ewoc ert--results-ewoc)
-                          (pos (ert--stats-test-index stats test))
+                          (pos (ert--stats-test-pos stats test))
                           (node (ewoc-nth ewoc pos)))
                      (assert node)
                      (setf (ert--ewoc-entry-test (ewoc-data node)) test)
@@ -493,7 +493,7 @@ and how to display message."
                (destructuring-bind (stats test result) event-args
                  (with-current-buffer buffer
                    (let* ((ewoc ert--results-ewoc)
-                          (pos (ert--stats-test-index stats test))
+                          (pos (ert--stats-test-pos stats test))
                           (node (ewoc-nth ewoc pos)))
                      (when (ert--ewoc-entry-hidden-p (ewoc-data node))
                        (setf (ert--ewoc-entry-hidden-p (ewoc-data node))
@@ -763,30 +763,23 @@ If there is no test at point, returns a list with two nils."
                     `(,test deleted))
                    (t
                     (ert--results-update-after-test-redefinition
-                     (ert--stats-test-index ert--results-stats test)
+                     (ert--stats-test-pos ert--results-stats test)
                      new-test)
                     `(,new-test redefined))))))))
 
-(defun ert--results-update-after-test-redefinition (test-index new-test)
-  "Update results buffer after the test at index TEST-INDEX has been redefined.
+(defun ert--results-update-after-test-redefinition (pos new-test)
+  "Update results buffer after the test at pos POS has been redefined.
 
 Also updates the stats object.  NEW-TEST is the new test
 definition."
   (let* ((stats ert--results-stats)
          (ewoc ert--results-ewoc)
-         (node (ewoc-nth ewoc test-index))
-         (entry (ewoc-data node))
-         (old-test (aref (ert--stats-tests stats) test-index)))
-    (setf
-     (ert--ewoc-entry-test entry) new-test
-     (aref (ert--stats-tests stats) test-index) new-test
-     (aref (ert--stats-test-results stats) test-index) nil
-     (aref ert--results-progress-bar-string test-index) (ert-char-for-test-result
-                                                         nil t))
-    (remhash (or (ert-test-name old-test) old-test) (ert--stats-test-map stats))
-    (setf (gethash (or (ert-test-name new-test) new-test)
-                   (ert--stats-test-map stats))
-          test-index)
+         (node (ewoc-nth ewoc pos))
+         (entry (ewoc-data node)))
+    (ert--stats-set-test-and-result stats pos new-test nil)
+    (setf (ert--ewoc-entry-test entry) new-test
+          (aref ert--results-progress-bar-string pos) (ert-char-for-test-result
+                                                       nil t))
     (ewoc-invalidate ewoc node))
   nil)
 
@@ -813,7 +806,6 @@ To be used in the ERT results buffer."
     (when (null test)
       (error "No test at point"))
     (let* ((stats ert--results-stats)
-           (pos (ert--stats-test-index stats test))
            (progress-message (format "Running %stest %S"
                                      (ecase redefinition-state
                                        ((nil) "")
@@ -854,7 +846,7 @@ To be used in the ERT results buffer."
   (interactive)
   (let* ((test (ert--results-test-at-point-no-redefinition))
          (stats ert--results-stats)
-         (pos (ert--stats-test-index stats test))
+         (pos (ert--stats-test-pos stats test))
          (result (aref (ert--stats-test-results stats) pos)))
     (etypecase result
       (ert-test-passed (error "Test passed, no backtrace available"))
@@ -884,7 +876,7 @@ To be used in the ERT results buffer."
   (interactive)
   (let* ((test (ert--results-test-at-point-no-redefinition))
          (stats ert--results-stats)
-         (pos (ert--stats-test-index stats test))
+         (pos (ert--stats-test-pos stats test))
          (result (aref (ert--stats-test-results stats) pos)))
     (let ((buffer (get-buffer-create "*ERT Messages*")))
       (pop-to-buffer buffer)
@@ -906,7 +898,7 @@ To be used in the ERT results buffer."
   (interactive)
   (let* ((test (ert--results-test-at-point-no-redefinition))
          (stats ert--results-stats)
-         (pos (ert--stats-test-index stats test))
+         (pos (ert--stats-test-pos stats test))
          (result (aref (ert--stats-test-results stats) pos)))
     (let ((buffer (get-buffer-create "*ERT list of should forms*")))
       (pop-to-buffer buffer)

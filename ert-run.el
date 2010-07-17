@@ -485,8 +485,6 @@ contained in UNIVERSE."
   (test-map (assert nil) :type hash-table)
   ;; The results of the tests during this run, in order.
   (test-results (assert nil) :type vector)
-  ;; The expected result types of the tests, in order.
-  (test-results-expected (assert nil) :type vector)
   ;; The start times of the tests, in order, as reported by
   ;; `current-time'.
   (test-start-times (assert nil) :type vector)
@@ -499,7 +497,7 @@ contained in UNIVERSE."
   (failed-unexpected 0)
   (error-expected 0)
   (error-unexpected 0)
-  (start-time (assert nil))
+  (start-time nil)
   (end-time nil)
   (aborted-p nil)
   (current-test nil)
@@ -508,13 +506,13 @@ contained in UNIVERSE."
   (next-redisplay 0.0))
 
 (defun ert-stats-completed-expected (stats)
-  "Returns the number of tests in STATS that had expected results."
+  "Return the number of tests in STATS that had expected results."
   (+ (ert--stats-passed-expected stats)
      (ert--stats-failed-expected stats)
      (ert--stats-error-expected stats)))
 
 (defun ert-stats-completed-unexpected (stats)
-  "Returns the number of tests in STATS that had unexpected results."
+  "Return the number of tests in STATS that had unexpected results."
   (+ (ert--stats-passed-unexpected stats)
      (ert--stats-failed-unexpected stats)
      (ert--stats-error-unexpected stats)))
@@ -532,28 +530,69 @@ contained in UNIVERSE."
 ;; used for the mode line progress indicator.
 (defvar ert--current-run-stats nil)
 
+(defun ert--stats-test-key (test)
+  "Return the key used for TEST in the test map of ert--stats objects.
+
+Returns the name of TEST if it has one, or TEST itself otherwise."
+  (or (ert-test-name test) test))
+
+(defun ert--stats-set-test-and-result (stats pos test result)
+  "Changes STATS by replacing the test at position POS with TEST and RESULT.
+
+Also changes the counters in STATS to match."
+  (let* ((tests (ert--stats-tests stats))
+         (results (ert--stats-test-results stats))
+         (old-test (aref tests pos))
+         (map (ert--stats-test-map stats)))
+    (flet ((update (d)
+             (if (ert-test-result-expected-p (aref tests pos) (aref results pos))
+                 (etypecase (aref results pos)
+                   (ert-test-passed (incf (ert--stats-passed-expected stats) d))
+                   (ert-test-failed (incf (ert--stats-failed-expected stats) d))
+                   (ert-test-error (incf (ert--stats-error-expected stats) d))
+                   (null)
+                   (ert-test-aborted-with-non-local-exit))
+               (etypecase (aref results pos)
+                 (ert-test-passed (incf (ert--stats-passed-unexpected stats) d))
+                 (ert-test-failed (incf (ert--stats-failed-unexpected stats) d))
+                 (ert-test-error (incf (ert--stats-error-unexpected stats) d))
+                 (null)
+                 (ert-test-aborted-with-non-local-exit)))))
+      ;; Adjust counters to remove the result that is currently in stats.
+      (update -1)
+      ;; Put new test and result into stats.
+      (setf (aref tests pos) test
+            (aref results pos) result)
+      (remhash (ert--stats-test-key old-test) map)
+      (setf (gethash (ert--stats-test-key test) map) pos)
+      ;; Adjust counters to match new result.
+      (update +1)
+      nil)))
+
+(defun ert--make-stats (tests selector)
+  "Create a new `ert--stats' object for running TESTS.
+
+SELECTOR is the selector that was used to select TESTS."
+  (setq tests (ert--coerce-to-vector tests))
+  (let ((map (make-hash-table :size (length tests))))
+    (loop for i from 0
+          for test across tests
+          for key = (ert--stats-test-key test) do
+          (assert (not (gethash key map)))
+          (setf (gethash key map) i))
+    (make-ert--stats :selector selector
+                     :tests tests
+                     :test-map map
+                     :test-results (make-vector (length tests) nil)
+                     :test-start-times (make-vector (length tests) nil)
+                     :test-end-times (make-vector (length tests) nil))))
+
 (defun ert-run-or-rerun-test (stats test listener)
   ;; checkdoc-order: nil
   "Run the single test TEST and record the result using STATS and LISTENER."
   (let ((ert--current-run-stats stats)
-        (pos (ert--stats-test-index stats test))
-        (results (ert--stats-test-results stats))
-        (expected (ert--stats-test-results-expected stats)))
-    ;; Adjust stats to remove previous result.
-    (if (aref expected pos)
-        (etypecase (aref results pos)
-          (ert-test-passed (decf (ert--stats-passed-expected stats)))
-          (ert-test-failed (decf (ert--stats-failed-expected stats)))
-          (ert-test-error (decf (ert--stats-error-expected stats)))
-          (null)
-          (ert-test-aborted-with-non-local-exit))
-      (etypecase (aref results pos)
-        (ert-test-passed (decf (ert--stats-passed-unexpected stats)))
-        (ert-test-failed (decf (ert--stats-failed-unexpected stats)))
-        (ert-test-error (decf (ert--stats-error-unexpected stats)))
-        (null)
-        (ert-test-aborted-with-non-local-exit)))
-    (setf (aref results pos) nil)
+        (pos (ert--stats-test-pos stats test)))
+    (ert--stats-set-test-and-result stats pos test nil)
     ;; Call listener after setting/before resetting
     ;; (ert--stats-current-test stats); the listener might refresh the
     ;; mode line display, and if the value is not set yet/any more
@@ -565,53 +604,23 @@ contained in UNIVERSE."
     (unwind-protect
         (ert-run-test test)
       (setf (aref (ert--stats-test-end-times stats) pos) (current-time))
-      (let* ((result (ert-test-most-recent-result test))
-             (expectedp (ert-test-result-expected-p test result)))
-        ;; Adjust stats to add new result.
-        (if expectedp
-            (etypecase result
-              (ert-test-passed (incf (ert--stats-passed-expected stats)))
-              (ert-test-failed (incf (ert--stats-failed-expected stats)))
-              (ert-test-error (incf (ert--stats-error-expected stats)))
-              (null)
-              (ert-test-aborted-with-non-local-exit))
-          (etypecase result
-            (ert-test-passed (incf (ert--stats-passed-unexpected stats)))
-            (ert-test-failed (incf (ert--stats-failed-unexpected stats)))
-            (ert-test-error (incf (ert--stats-error-unexpected stats)))
-            (null)
-            (ert-test-aborted-with-non-local-exit)))
-        (setf (aref results pos) result
-              (aref expected pos) expectedp)
+      (let ((result (ert-test-most-recent-result test)))
+        (ert--stats-set-test-and-result stats pos test result)
         (funcall listener 'test-ended stats test result))
       (setf (ert--stats-current-test stats) nil))))
 
 (defun ert-run-tests (selector listener)
   "Run the tests specified by SELECTOR, sending progress updates to LISTENER."
-  (let* ((tests (ert--coerce-to-vector (ert-select-tests selector t)))
-         (map (let ((map (make-hash-table :size (length tests))))
-                (loop for i from 0
-                      for test across tests
-                      for key = (or (ert-test-name test) test) do
-                      (assert (not (gethash key map)))
-                      (setf (gethash key map) i))
-                map))
-         (stats (make-ert--stats
-                 :selector selector
-                 :tests tests
-                 :test-map map
-                 :test-results (make-vector (length tests) nil)
-                 :test-results-expected (make-vector (length tests) nil)
-                 :test-start-times (make-vector (length tests) nil)
-                 :test-end-times (make-vector (length tests) nil)
-                 :start-time (current-time))))
+  (let* ((tests (ert-select-tests selector t))
+         (stats (ert--make-stats tests selector)))
+    (setf (ert--stats-start-time stats) (current-time))
     (funcall listener 'run-started stats)
     (let ((abortedp t))
       (let ((ert--current-run-stats stats))
         (force-mode-line-update)
         (unwind-protect
             (progn
-              (loop for test across tests do
+              (loop for test in tests do
                     (ert-run-or-rerun-test stats test listener))
               (setq abortedp nil))
           (setf (ert--stats-aborted-p stats) abortedp)
@@ -619,10 +628,10 @@ contained in UNIVERSE."
           (funcall listener 'run-ended stats abortedp)))
       stats)))
 
-(defun ert--stats-test-index (stats test)
+(defun ert--stats-test-pos (stats test)
   ;; checkdoc-order: nil
-  "Return the index of TEST in the run represented by STATS."
-  (gethash (or (ert-test-name test) test) (ert--stats-test-map stats)))
+  "Return the position (index) of TEST in the run represented by STATS."
+  (gethash (ert--stats-test-key test) (ert--stats-test-map stats)))
 
 
 ;;; Formatting functions shared across UIs.

@@ -117,7 +117,7 @@ Returns the stats object."
                      (ert-string-for-test-result result
                                                  (ert-test-result-expected-p
                                                   test result))
-                     (1+ (ert--stats-test-index stats test))
+                     (1+ (ert--stats-test-pos stats test))
                      (ert-test-name test)))))))))
 
 ;;;###autoload
