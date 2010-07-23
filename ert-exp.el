@@ -342,6 +342,37 @@ structure with the plists in ARGS."
                   (setq current-plist x))))
     (buffer-string)))
 
+
+(defun ert-call-with-buffer-renamed (buffer-name thunk)
+  "Protect the buffer named BUFFER-NAME from side-effects and run THUNK.
+
+Renames the buffer BUFFER-NAME to a new temporary name, creates a
+new buffer named BUFFER-NAME, executes THUNK, kills the new
+buffer, and renames the original buffer back to BUFFER-NAME.
+
+This is useful if THUNK has undesirable side-effects on an Emacs
+buffer with a fixed name such as *Messages*."
+  (lexical-let ((new-buffer-name (generate-new-buffer-name
+                                  (format "%s orig buffer" buffer-name))))
+    (with-current-buffer (get-buffer-create buffer-name)
+      (rename-buffer new-buffer-name))
+    (unwind-protect
+        (progn
+          (get-buffer-create buffer-name)
+          (funcall thunk))
+      (when (get-buffer buffer-name)
+        (kill-buffer buffer-name))
+      (with-current-buffer new-buffer-name
+        (rename-buffer buffer-name)))))
+
+(defmacro* ert-with-buffer-renamed ((buffer-name-form) &body body)
+  "Protect the buffer named BUFFER-NAME from side-effects and run BODY.
+
+See `ert-call-with-buffer-renamed' for details."
+  (declare (indent 1))
+  `(ert-call-with-buffer-renamed ,buffer-name-form (lambda () ,@body)))
+
+
 (provide 'ert-exp)
 
 ;;; ert-exp.el ends here

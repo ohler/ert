@@ -424,55 +424,6 @@ This macro is used to test if macroexpansion in `should' works."
         (should (equal (concat message-string "\n")
                        (ert-test-result-messages result)))))))
 
-(defun ert-call-with-buffer-renamed (buffer-name thunk)
-  "Protect the buffer named BUFFER-NAME from side-effects and run THUNK.
-
-Renames the buffer BUFFER-NAME to a new temporary name, creates a
-new buffer named BUFFER-NAME, executes THUNK, kills the new
-buffer, and renames the original buffer back to BUFFER-NAME.
-
-This is useful if THUNK has undesirable side-effects on an Emacs
-buffer with a fixed name such as *Messages*."
-  (lexical-let ((new-buffer-name (generate-new-buffer-name
-                                  (format "%s orig buffer" buffer-name))))
-    (with-current-buffer (get-buffer-create buffer-name)
-      (rename-buffer new-buffer-name))
-    (unwind-protect
-        (progn
-          (get-buffer-create buffer-name)
-          (funcall thunk))
-      (when (get-buffer buffer-name)
-        (kill-buffer buffer-name))
-      (with-current-buffer new-buffer-name
-        (rename-buffer buffer-name)))))
-
-(defmacro* ert-with-buffer-renamed ((buffer-name-form) &body body)
-  "Protect the buffer named BUFFER-NAME from side-effects and run BODY.
-
-See `ert-call-with-buffer-renamed' for details."
-  (declare (indent 1))
-  `(ert-call-with-buffer-renamed ,buffer-name-form (lambda () ,@body)))
-
-(ert-deftest ert-test-messages-on-log-truncation ()
-  :tags '(:causes-redisplay)
-  (let ((test (make-ert-test
-               :body (lambda ()
-                       ;; Emacs would combine messages if we
-                       ;; generate the same message multiple
-                       ;; times.
-                       (message "a")
-                       (message "b")
-                       (message "c")
-                       (message "d")))))
-    (let (result)
-      (ert-with-buffer-renamed ("*Messages*")
-        (let ((message-log-max 2))
-          (setq result (ert-run-test test)))
-        (should (equal (with-current-buffer "*Messages*"
-                         (buffer-string))
-                       "c\nd\n")))
-      (should (equal (ert-test-result-messages result) "a\nb\nc\nd\n")))))
-
 (ert-deftest ert-test-running-tests ()
   (let ((outer-test (ert-get-test 'ert-test-running-tests)))
     (should (equal (ert-running-test) outer-test))
@@ -671,24 +622,6 @@ See `ert-call-with-buffer-renamed' for details."
             (when (get-buffer buffer-name)
               (kill-buffer buffer-name))))))))
 
-(ert-deftest ert-test-describe-test ()
-  "Tests `ert-describe-test'."
-  (save-window-excursion
-    (ert-with-buffer-renamed ("*Help*")
-      (if (< emacs-major-version 24)
-          (should-error (ert-describe-test 'ert-describe-test)
-                        :test (lambda (condition)
-                                (should (equal condition
-                                               '(error "Requires Emacs 24")))))
-        (ert-describe-test 'ert-test-describe-test)
-        (with-current-buffer "*Help*"
-          (let ((case-fold-search nil))
-            (should (string-match (concat
-                                   "\\`ert-test-describe-test is a test"
-                                   " defined in `ert-tests.elc?'\\.\n\n"
-                                   "Tests `ert-describe-test'\\.\n\\'")
-                                  (buffer-string)))))))))
-
 (ert-deftest ert-test-special-operator-p ()
   (should (ert--special-operator-p 'if))
   (should-not (ert--special-operator-p 'car))
@@ -697,60 +630,6 @@ See `ert-call-with-buffer-renamed' for details."
     (should-not (ert--special-operator-p b))
     (fset b 'if)
     (should (ert--special-operator-p b))))
-
-(ert-deftest ert-test-builtin-message-log-flushing ()
-  "This test attempts to demonstrate that there is no way to
-force immediate truncation of the *Messages* buffer from Lisp
-\(and hence justifies the existence of
-`ert--force-message-log-buffer-truncation'\): The only way that
-came to my mind was \(message \"\"\), which doesn't have the
-desired effect."
-  :tags '(:causes-redisplay)
-  (ert-with-buffer-renamed ("*Messages*")
-    (with-current-buffer "*Messages*"
-      (should (equal (buffer-string) ""))
-      ;; We used to get sporadic failures in this test that involved
-      ;; a spurious newline at the beginning of the buffer, before
-      ;; the first message.  Below, we print a message and erase the
-      ;; buffer since this seems to eliminate the sporadic failures.
-      (message "foo")
-      (erase-buffer)
-      (should (equal (buffer-string) ""))
-      (let ((message-log-max 2))
-        (let ((message-log-max t))
-          (loop for i below 4 do
-                (message "%s" i))
-          (should (equal (buffer-string) "0\n1\n2\n3\n")))
-        (should (equal (buffer-string) "0\n1\n2\n3\n"))
-        (message "")
-        (should (equal (buffer-string) "0\n1\n2\n3\n"))
-        (message "Test message")
-        (should (equal (buffer-string) "3\nTest message\n"))))))
-
-(ert-deftest ert-test-force-message-log-buffer-truncation ()
-  :tags '(:causes-redisplay)
-  (labels ((body ()
-             (loop for i below 3 do
-                   (message "%s" i)))
-           ;; Uses the implicit messages buffer truncation implemented
-           ;; in Emacs' C core.
-           (c (x)
-             (ert-with-buffer-renamed ("*Messages*")
-               (let ((message-log-max x))
-                 (body))
-               (with-current-buffer "*Messages*"
-                 (buffer-string))))
-           ;; Uses our lisp reimplementation.
-           (lisp (x)
-             (ert-with-buffer-renamed ("*Messages*")
-               (let ((message-log-max t))
-                 (body))
-               (let ((message-log-max x))
-                 (ert--force-message-log-buffer-truncation))
-               (with-current-buffer "*Messages*"
-                 (buffer-string)))))
-    (loop for x in '(0 1 2 3 4 t) do
-          (should (equal (c x) (lisp x))))))
 
 (ert-deftest ert-test-list-of-should-forms ()
   (let ((test (make-ert-test :body (lambda ()
