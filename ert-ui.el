@@ -538,6 +538,7 @@ and how to display message."
         ("n" ert-results-next-test)
         ("p" ert-results-previous-test)
         ;; Stuff that is in the menu.
+        ("R" ert-results-rerun-all-tests)
         ("r" ert-results-rerun-test-at-point)
         ("d" ert-results-rerun-test-at-point-debugging-errors)
         ("." ert-results-find-test-at-point-other-window)
@@ -554,6 +555,8 @@ and how to display message."
 (easy-menu-define ert-results-mode-menu ert-results-mode-map
   "Menu for `ert-results-mode'."
   '("ERT Results"
+    ["Re-run all tests" ert-results-rerun-all-tests]
+    "--"
     ["Re-run test" ert-results-rerun-test-at-point]
     ["Debug test" ert-results-rerun-test-at-point-debugging-errors]
     ["Show test definition" ert-results-find-test-at-point-other-window]
@@ -794,6 +797,15 @@ definition."
   "Jump to details for the test represented by the character clicked in BUTTON."
   (goto-char (ert--button-action-position))
   (ert-results-jump-between-summary-and-result))
+
+(defun ert-results-rerun-all-tests ()
+  "Re-run all tests, using the same selector.
+
+To be used in the ERT results buffer."
+  (interactive)
+  (assert (eql major-mode 'ert-results-mode))
+  (let ((selector (ert--stats-selector ert--results-stats)))
+    (ert-run-tests-interactively selector (buffer-name))))
 
 (defun ert-results-rerun-test-at-point ()
   "Re-run the test at point.
