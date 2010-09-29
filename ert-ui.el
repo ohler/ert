@@ -188,7 +188,6 @@ Also sets `ert--results-progress-bar-button-begin'."
        (insert
         (format (concat "Passed: %s\n"
                         "Failed: %s\n"
-                        "Error:  %s\n"
                         "Total:  %s/%s\n\n")
                 (ert--results-format-expected-unexpected
                  (ert--stats-passed-expected stats)
@@ -196,9 +195,6 @@ Also sets `ert--results-progress-bar-button-begin'."
                 (ert--results-format-expected-unexpected
                  (ert--stats-failed-expected stats)
                  (ert--stats-failed-unexpected stats))
-                (ert--results-format-expected-unexpected
-                 (ert--stats-error-expected stats)
-                 (ert--stats-error-unexpected stats))
                 run-count
                 (ert-stats-total stats)))
        (insert

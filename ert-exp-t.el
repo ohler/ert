@@ -130,7 +130,6 @@
                   "Selector: (member <passing-test> <failing-test>)\n"
                   "Passed: 1\n"
                   "Failed: 1 (1 unexpected)\n"
-                  "Error:  0\n"
                   "Total:  2/2\n\n"
                   "Started at:\n"
                   "Finished.\n"

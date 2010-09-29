@@ -145,7 +145,7 @@ failed or if there was a problem."
   (let ((test (make-ert-test :body (lambda () (error "Error message")))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
-      (assert (typep result 'ert-test-error) t)
+      (assert (typep result 'ert-test-failed) t)
       (assert (equal (ert-test-result-with-condition-condition result)
                      '(error "Error message"))
               t))))
@@ -611,13 +611,12 @@ This macro is used to test if macroexpansion in `should' works."
                   (should (equal
                            (buffer-substring (point-min)
                                              (save-excursion
-                                               (forward-line 5)
+                                               (forward-line 4)
                                                (point)))
                            (concat
                             "Selector: (member <passing-test> <failing-test>)\n"
                             "Passed: 1\n"
                             "Failed: 1 (1 unexpected)\n"
-                            "Error:  0\n"
                             "Total:  2/2\n")))))
             (when (get-buffer buffer-name)
               (kill-buffer buffer-name))))))))

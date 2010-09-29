@@ -45,7 +45,6 @@
 (defstruct (ert-test-result-with-condition (:include ert-test-result))
   (condition (assert nil))
   (backtrace (assert nil)))
-(defstruct (ert-test-error (:include ert-test-result-with-condition)))
 (defstruct (ert-test-quit (:include ert-test-result-with-condition)))
 (defstruct (ert-test-failed (:include ert-test-result-with-condition)))
 (defstruct (ert-test-aborted-with-non-local-exit (:include ert-test-result)))
@@ -131,8 +130,7 @@ run.  DEBUGGER-ARGS are the arguments to `debugger'."
        (let* ((condition (first more-debugger-args))
               (type (case (car condition)
                       ((quit) 'quit)
-                      ((ert-test-failed) 'failed)
-                      (otherwise 'error)))
+                      (otherwise 'failed)))
               (backtrace (ert--record-backtrace)))
          (setf (ert--test-execution-info-result info)
                (ecase type
@@ -141,10 +139,7 @@ run.  DEBUGGER-ARGS are the arguments to `debugger'."
                                       :backtrace backtrace))
                  (failed
                   (make-ert-test-failed :condition condition
-                                        :backtrace backtrace))
-                 (error
-                  (make-ert-test-error :condition condition
-                                       :backtrace backtrace))))
+                                        :backtrace backtrace))))
          ;; Work around Emacs' heuristic (in eval.c) for detecting
          ;; errors in the debugger.
          (incf num-nonmacro-input-events)
@@ -264,7 +259,7 @@ Valid result types:
 
 nil -- Never matches.
 t -- Always matches.
-:failed, :passed, :error -- Matches corresponding results.
+:failed, :passed -- Matches corresponding results.
 \(and TYPES...\) -- Matches if all TYPES match.
 \(or TYPES...\) -- Matches if some TYPES match.
 \(not TYPE\) -- Matches if TYPE does not match.
@@ -277,7 +272,6 @@ t -- Always matches.
     ((member t) t)
     ((member :failed) (ert-test-failed-p result))
     ((member :passed) (ert-test-passed-p result))
-    ((member :error) (ert-test-error-p result))
     (cons
      (destructuring-bind (operator &rest operands) result-type
        (ecase operator
@@ -321,7 +315,7 @@ Valid selectors:
 nil -- Selects the empty set.
 t -- Selects UNIVERSE.
 :new -- Selects all tests that have not been run yet.
-:failed, :passed, :error -- Select tests according to their most recent result.
+:failed, :passed -- Select tests according to their most recent result.
 :expected, :unexpected -- Select tests according to their most recent result.
 a string -- Selects all tests that have a name that matches the string,
             a regexp.
@@ -363,12 +357,6 @@ contained in UNIVERSE."
                                        (ert-test-most-recent-result test)
                                        ':passed)))
                        universe))
-    ((member :error) (ert-select-tests
-                      `(satisfies ,(lambda (test)
-                                     (ert-test-result-type-p
-                                      (ert-test-most-recent-result test)
-                                      ':error)))
-                      universe))
     ((member :expected) (ert-select-tests
                          `(satisfies
                            ,(lambda (test)
@@ -444,7 +432,7 @@ contained in UNIVERSE."
              ;; This code needs to match the etypecase in `ert-select-tests'.
              (etypecase selector
                ((or (member nil t
-                            :new :failed :passed :error
+                            :new :failed :passed
                             :expected :unexpected)
                     string
                     symbol)
@@ -495,8 +483,6 @@ contained in UNIVERSE."
   (passed-unexpected 0)
   (failed-expected 0)
   (failed-unexpected 0)
-  (error-expected 0)
-  (error-unexpected 0)
   (start-time nil)
   (end-time nil)
   (aborted-p nil)
@@ -508,14 +494,12 @@ contained in UNIVERSE."
 (defun ert-stats-completed-expected (stats)
   "Return the number of tests in STATS that had expected results."
   (+ (ert--stats-passed-expected stats)
-     (ert--stats-failed-expected stats)
-     (ert--stats-error-expected stats)))
+     (ert--stats-failed-expected stats)))
 
 (defun ert-stats-completed-unexpected (stats)
   "Return the number of tests in STATS that had unexpected results."
   (+ (ert--stats-passed-unexpected stats)
-     (ert--stats-failed-unexpected stats)
-     (ert--stats-error-unexpected stats)))
+     (ert--stats-failed-unexpected stats)))
 
 (defun ert-stats-completed (stats)
   "Number of tests in STATS that have run so far."
@@ -549,13 +533,11 @@ Also changes the counters in STATS to match."
                  (etypecase (aref results pos)
                    (ert-test-passed (incf (ert--stats-passed-expected stats) d))
                    (ert-test-failed (incf (ert--stats-failed-expected stats) d))
-                   (ert-test-error (incf (ert--stats-error-expected stats) d))
                    (null)
                    (ert-test-aborted-with-non-local-exit))
                (etypecase (aref results pos)
                  (ert-test-passed (incf (ert--stats-passed-unexpected stats) d))
                  (ert-test-failed (incf (ert--stats-failed-unexpected stats) d))
-                 (ert-test-error (incf (ert--stats-error-unexpected stats) d))
                  (null)
                  (ert-test-aborted-with-non-local-exit)))))
       ;; Adjust counters to remove the result that is currently in stats.
@@ -647,7 +629,6 @@ EXPECTEDP specifies whether the result was expected."
   (let ((s (etypecase result
              (ert-test-passed ".P")
              (ert-test-failed "fF")
-             (ert-test-error "eE")
              (null "--")
              (ert-test-aborted-with-non-local-exit "aA"))))
     (elt s (if expectedp 0 1))))
@@ -659,7 +640,6 @@ EXPECTEDP specifies whether the result was expected."
   (let ((s (etypecase result
              (ert-test-passed '("passed" "PASSED"))
              (ert-test-failed '("failed" "FAILED"))
-             (ert-test-error '("error" "ERROR"))
              (null '("unknown" "UNKNOWN"))
              (ert-test-aborted-with-non-local-exit '("aborted" "ABORTED")))))
     (elt s (if expectedp 0 1))))

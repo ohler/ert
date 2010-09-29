@@ -173,7 +173,6 @@ tests run.  It looks like this:
 Selector: t
 Passed: 31
 Failed: 2 (2 unexpected)
-Error:  0
 Total:  33/33
 
 Started at:   2008-09-11 08:39:25-0700
@@ -270,7 +269,7 @@ to Common Lisp's type specifier syntax:
 @item @code{nil} selects no tests.
 @item @code{t} selects all tests.
 @item @code{:new} selects all tests that have not been run yet.
-@item @code{:failed}, @code{:passed}, @code{:error} select tests according to their most recent result.
+@item @code{:failed} and @code{:passed} select tests according to their most recent result.
 @item @code{:expected}, @code{:unexpected} select tests according to their most recent result.
 @item A string selects all tests that have a name that matches the string, a regexp.
 @item A test selects that test.
