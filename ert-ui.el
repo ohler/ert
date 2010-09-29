@@ -116,7 +116,10 @@ Nothing more than an interactive interface to `ert-make-test-unbound'."
   (when (interactive-p)
     (unless (y-or-n-p "Delete all tests? ")
       (error "Aborted")))
-  (mapc #'ert-delete-test (mapcar #'ert-test-name (ert-select-tests t t)))
+  ;; We can't use `ert-select-tests' here since that gives us only
+  ;; test objects, and going from them back to the test name symbols
+  ;; can fail if the `ert-test' defstruct has been redefined.
+  (mapc #'ert-make-test-unbound (apropos-internal "" #'ert-test-boundp))
   t)
 
 
