@@ -108,7 +108,7 @@ This can be escaped with a backslash to unclude it literally."
 (put 'with-test-buffer 'lisp-indent-function 1)
 
 
-;;; Test buffers
+;;; Test buffers.
 
 (defvar ert--temp-test-buffer-test nil)
 (make-variable-buffer-local 'ert--temp-test-buffer-test)
@@ -214,7 +214,7 @@ To access these temporary test buffers use
            (kill-buffer temp-buf))))))
 
 
-;;; Simulate commands
+;;; Simulate commands.
 
 (defvar ert-simulate-command-delay nil)
 
@@ -293,6 +293,8 @@ Run the hook `ert-simulate-command-post-hook' at the very end."
     (run-hooks 'ert-simulate-command-post-hook)
     return-value))
 
+
+;;; More general utilities.
 
 (defun ert-filter-string (s &rest regexps)
   "Return a copy of S with all matches of REGEXPS removed.

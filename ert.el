@@ -200,6 +200,7 @@ Emacs bug 6581 at URL `http://debbugs.gnu.org/cgi/bugreport.cgi?bug=6581'."
   ;; it altogether.
   (not (ert--explain-not-equal-including-properties a b)))
 
+
 ;;; Defining and locating tests.
 
 ;; The data structure that represents a test case.
