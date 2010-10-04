@@ -4,6 +4,7 @@
 
 ;; Author: Phil Hagelberg
 ;; Author: Lennart Borgman (lennart O borgman A gmail O com)
+;; Author: Christian M. Ohler
 
 ;; This file is NOT part of GNU Emacs.
 

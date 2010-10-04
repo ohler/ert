@@ -56,7 +56,7 @@ Returns the stats object."
        (run-ended
         (destructuring-bind (stats abortedp) event-args
           (let ((unexpected (ert-stats-completed-unexpected stats)))
-            (message "\n%sRan %s tests, %s results were as expected%s (%s)\n"
+            (message "\n%sRan %s tests, %s results as expected%s (%s)\n"
                      (if (not abortedp)
                          ""
                        "Aborted: ")

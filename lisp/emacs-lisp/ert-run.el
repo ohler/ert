@@ -393,7 +393,7 @@ contained in UNIVERSE."
           (ert-select-tests `(member ,@operands) universe))
          (and
           ;; Do these definitions of AND, NOT and OR satisfy de
-          ;; Morgan's rules?  Should they?
+          ;; Morgan's laws?  Should they?
           (case (length operands)
             (0 (ert-select-tests 't universe))
             (t (ert-select-tests `(and ,@(rest operands))

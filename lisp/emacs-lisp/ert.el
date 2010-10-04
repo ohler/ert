@@ -3,7 +3,6 @@
 ;; Copyright (C) 2007, 2008, 2010 Christian M. Ohler
 
 ;; Author: Christian M. Ohler
-;; Version: 0.2
 ;; Keywords: lisp, tools
 
 ;; This file is NOT part of GNU Emacs.
