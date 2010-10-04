@@ -96,7 +96,8 @@ Returns the stats object."
                                   start end)))
                  (forward-line 1)))
              (with-temp-buffer
-               (insert "  ")
+               (ert--insert-infos result)
+               (insert "    ")
                (let ((print-escape-newlines t)
                      (print-level 5)
                      (print-length 10))

@@ -33,6 +33,7 @@
 (require 'easymenu)
 (require 'ewoc)
 (require 'help)
+(require 'button)
 
 
 ;;; UI customization options.
@@ -363,10 +364,11 @@ non-nil, returns the face for expected results.."
                   (insert "    passed unexpectedly\n"))
                 (insert ""))
                (ert-test-result-with-condition
-                (insert "    ")
+                (ert--insert-infos result)
                 (let ((print-escape-newlines t)
                       (print-level (if extended-printer-limits-p 12 6))
                       (print-length (if extended-printer-limits-p 100 10)))
+                  (insert "    ")
                   (let ((begin (point)))
                     (ert--pp-with-indentation-and-newline
                      (ert-test-result-with-condition-condition result))

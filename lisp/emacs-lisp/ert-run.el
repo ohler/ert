@@ -44,7 +44,8 @@
 (defstruct (ert-test-passed (:include ert-test-result)))
 (defstruct (ert-test-result-with-condition (:include ert-test-result))
   (condition (assert nil))
-  (backtrace (assert nil)))
+  (backtrace (assert nil))
+  (infos (assert nil)))
 (defstruct (ert-test-quit (:include ert-test-result-with-condition)))
 (defstruct (ert-test-failed (:include ert-test-result-with-condition)))
 (defstruct (ert-test-aborted-with-non-local-exit (:include ert-test-result)))
@@ -131,15 +132,18 @@ run.  DEBUGGER-ARGS are the arguments to `debugger'."
               (type (case (car condition)
                       ((quit) 'quit)
                       (otherwise 'failed)))
-              (backtrace (ert--record-backtrace)))
+              (backtrace (ert--record-backtrace))
+              (infos (reverse ert--infos)))
          (setf (ert--test-execution-info-result info)
                (ecase type
                  (quit
                   (make-ert-test-quit :condition condition
-                                      :backtrace backtrace))
+                                      :backtrace backtrace
+                                      :infos infos))
                  (failed
                   (make-ert-test-failed :condition condition
-                                        :backtrace backtrace))))
+                                        :backtrace backtrace
+                                        :infos infos))))
          ;; Work around Emacs' heuristic (in eval.c) for detecting
          ;; errors in the debugger.
          (incf num-nonmacro-input-events)
@@ -170,7 +174,8 @@ This mainly sets up debugger-related bindings."
                 (debug-on-quit t)
                 ;; FIXME: Do we need to store the old binding of this
                 ;; and consider it in `ert--run-test-debugger'?
-                (debug-ignored-errors nil))
+                (debug-ignored-errors nil)
+                (ert--infos '()))
             (funcall (ert-test-body (ert--test-execution-info-test info))))))
       (ert-pass))
     (setf (ert--test-execution-info-result info) (make-ert-test-passed)))
@@ -653,6 +658,28 @@ Ensures a final newline is inserted."
     (save-excursion
       (goto-char begin)
       (indent-sexp))))
+
+(defun ert--insert-infos (result)
+  "Insert `ert-info' infos from RESULT into current buffer.
+
+RESULT must be an `ert-test-result-with-condition'."
+  (check-type result ert-test-result-with-condition)
+  (dolist (info (ert-test-result-with-condition-infos result))
+    (destructuring-bind (prefix . message) info
+      (let ((begin (point))
+            (indentation (make-string (+ (length prefix) 4) ?\s))
+            (end nil))
+        (unwind-protect
+            (progn
+              (insert message "\n")
+              (setq end (copy-marker (point)))
+              (goto-char begin)
+              (insert "    " prefix)
+              (forward-line 1)
+              (while (< (point) end)
+                (insert indentation)
+                (forward-line 1)))
+          (when end (set-marker end nil)))))))
 
 
 (provide 'ert-run)

@@ -515,7 +515,8 @@ This macro is used to test if macroexpansion in `should' works."
                :body nil
                :most-recent-result (make-ert-test-failed
                                     :condition nil
-                                    :backtrace nil))))
+                                    :backtrace nil
+                                    :infos nil))))
     (should (equal (ert-select-tests `(and (member ,test) :failed) t)
                    (list test)))))
 
@@ -952,7 +953,9 @@ This macro is used to test if macroexpansion in `should' works."
          (test-3 (make-ert-test :name 'test-2
                                 :body (lambda () nil)))
          (stats (ert--make-stats (list test-1 test-2) 't))
-         (failed (make-ert-test-failed :condition nil :backtrace nil)))
+         (failed (make-ert-test-failed :condition nil
+                                       :backtrace nil
+                                       :infos nil)))
     (should (eql 2 (ert-stats-total stats)))
     (should (eql 0 (ert-stats-completed stats)))
     (should (eql 0 (ert-stats-completed-expected stats)))
@@ -987,6 +990,7 @@ This macro is used to test if macroexpansion in `should' works."
     (should (eql 2 (ert-stats-completed stats)))
     (should (eql 2 (ert-stats-completed-expected stats)))
     (should (eql 0 (ert-stats-completed-unexpected stats)))))
+
 
 (provide 'ert-tests)
 

@@ -113,13 +113,16 @@
 
 ;;; Tests for ERT itself that require test features from ert-exp.el.
 
-(ert-deftest ert-test-x-run-tests-interactively ()
+(ert-deftest ert-test-run-tests-interactively-2 ()
   :tags '(:causes-redisplay)
   (let ((passing-test (make-ert-test :name 'passing-test
                                      :body (lambda () (ert-pass))))
         (failing-test (make-ert-test :name 'failing-test
-                                     :body (lambda () (ert-fail
-                                                       "failure message")))))
+                                     :body (lambda ()
+                                             (ert-info ((propertize "foo\nbar"
+                                                                    'a 'b))
+					      (ert-fail
+					       "failure message"))))))
     (let ((ert-debug-on-error nil))
       (let* ((buffer-name (generate-new-buffer-name "*ert-test-run-tests*"))
              (messages nil)
@@ -141,25 +144,22 @@
                              face ,(if with-font-lock-p
                                        'ert-test-result-unexpected
                                      'button))
-                  ".F"
-                  nil
-                  "\n\n"
+                  ".F" nil "\n\n"
                   `(category ,(button-category-symbol
                                'ert--results-expand-collapse-button)
                              button (t)
                              face ,(if with-font-lock-p
                                        'ert-test-result-unexpected
                                      'button))
-                  "F"
-                  nil
-                  " "
+                  "F" nil " "
                   `(category ,(button-category-symbol
                                'ert--test-name-button)
                              button (t)
                              ert-test-name failing-test)
                   "failing-test"
-                  nil
-                  "\n    (ert-test-failed \"failure message\")\n\n\n"
+                  nil "\n    Info: " '(a b) "foo\n"
+                  nil "          " '(a b) "bar"
+                  nil "\n    (ert-test-failed \"failure message\")\n\n\n"
                   )))
         (save-window-excursion
           (unwind-protect
@@ -224,7 +224,7 @@
           (let ((case-fold-search nil))
             (should (string-match (concat
                                    "\\`ert-test-describe-test is a test"
-                                   " defined in `ert-tests.elc?'\\.\n\n"
+                                   " defined in `ert-exp-t.elc?'\\.\n\n"
                                    "Tests `ert-describe-test'\\.\n\\'")
                                   (buffer-string)))))))))
 

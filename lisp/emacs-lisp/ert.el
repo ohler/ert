@@ -323,9 +323,9 @@ description of valid values for RESULT-TYPE.
 ;; `put' forms solves this.
 ;;;###autoload
 (progn
-  ;; TODO(ohler): figure out what these mean, and if both are needed.
+  ;; TODO(ohler): Figure out what these mean and make sure they are correct.
   (put 'ert-deftest 'lisp-indent-function 2)
-  (put 'ert-deftest 'lisp-indent-hook 2))
+  (put 'ert-info 'lisp-indent-function 1))
 
 (defvar ert--find-test-regexp
   (concat "^\\s-*(ert-deftest"
@@ -539,6 +539,12 @@ element of TYPE.  TEST should be a predicate."
 
 ;;; Explanation of `should' failures.
 
+;; TODO(ohler): Rework explanations so that they are displayed in a
+;; similar way to `ert-info' messages; in particular, allow text
+;; buttons in explanations that give more detail or open an ediff
+;; buffer.  Perhaps explanations should be reported through `ert-info'
+;; rather than as part of the condition.
+
 (defun ert--proper-list-p (x)
   "Return non-nil if X is a proper list, nil otherwise."
   (loop
@@ -695,6 +701,30 @@ Returns a programmer-readable explanation of why A and B are not
 (put 'ert-equal-including-properties
      'ert-explainer
      'ert--explain-not-equal-including-properties)
+
+
+;;; Implementation of `ert-info'.
+
+;; TODO(ohler): The name `info' clashes with
+;; `ert--test-execution-info'.  One or both should be renamed.
+(defvar ert--infos '()
+  "The stack of `ert-info' infos that currently apply.
+
+Bound dynamically.  This is a list of (PREFIX . MESSAGE) pairs.")
+
+(defmacro* ert-info ((message-form &key ((:prefix prefix-form) "Info: "))
+                     &body body)
+  "Evaluate MESSAGE-FORM and BODY, and report the message if BODY fails.
+
+To be used within ERT tests.  MESSAGE-FORM should evaluate to a
+string that will be displayed together with the test result if
+the test fails.  PREFIX-FORM should evaluate to a string as well
+and is displayed in front of the value of MESSAGE-FORM."
+  (declare (debug ((form &rest [sexp form]) body))
+	   (indent 1))
+  `(let ((ert--infos (cons (cons ,prefix-form ,message-form) ert--infos)))
+     ,@body))
+
 
 
 ;;; Utility functions for load/unload actions.
