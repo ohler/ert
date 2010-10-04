@@ -71,148 +71,94 @@ BUFFER defaults to current buffer."
         (let ((kill-buffer-query-functions nil))
           (kill-buffer nil))))))
 
-(defun ert-test-buffer-substitute (string fn)
-  "Remove all occurrences of STRING in current buffer and call FN for each.
-
-Removes the all occurrences of STRING in the buffer and runs FN
-at each point where one is removed.
-
-Backslash-escaped STRINGs are unescaped and ignored."
-  (let ((len (length string)))
-    (save-excursion
-      (goto-char (point-min))
-      (while (search-forward string nil t)
-        (save-excursion
-          (backward-char len)
-          (if (eq (char-before (point)) ?\\) (delete-char -1)
-            (delete-char len)
-            (funcall fn)))))))
-
-(defmacro with-test-buffer (contents &rest body)
-  "In a temporary buffer containing CONTENTS, run BODY.
-
-The mark may be set in the buffer using the string \"<mark>\".
-This can be escaped with a backslash to unclude it literally."
-  `(with-temp-buffer
-     (insert ,contents)
-     (goto-char (point-min))
-
-     (let ((new-mark))
-       (ert-test-buffer-substitute "<mark>" (lambda () (setq new-mark (point))))
-       (set-mark new-mark))
-
-     (let ((new-point (point)))
-       (ert-test-buffer-substitute "<point>"
-                                   (lambda () (setq new-point (point))))
-       (goto-char new-point))
-     ,@body))
-(put 'with-test-buffer 'lisp-indent-function 1)
-
 
 ;;; Test buffers.
 
-(defvar ert--temp-test-buffer-test nil)
-(make-variable-buffer-local 'ert--temp-test-buffer-test)
-(put 'ert--temp-test-buffer-test 'permanent-local t)
+(defun ert--text-button (string &rest properties)
+  "Return a string containing STRING as a text button with PROPERTIES.
 
-(defvar ert--temp-test-buffer-file nil)
-(make-variable-buffer-local 'ert--temp-test-buffer-file)
-(put 'ert--temp-test-buffer-file 'permanent-local t)
+See `make-text-button'."
+  (with-temp-buffer
+    (insert string)
+    (apply #'make-text-button (point-min) (point-max) properties)
+    (buffer-string)))
 
-(defvar ert--failed-tests-temp-buffers nil)
+(defun ert--format-test-buffer-name (base-name)
+  (format "*Test buffer (%s)%s*"
+	  (or (and (ert-running-test)
+		   (ert-test-name (ert-running-test)))
+	      "<anonymous test>")
+	  (if base-name
+	      (format ": %s" base-name)
+	    "")))
 
-(defvar ert--list-failed-buffers-name "*Ert Failed Test Buffers*")
+(defvar ert--test-buffers (make-hash-table :weakness t)
+  "Table of all test buffers.  Keys are the buffer objects, values are t.
 
-(defun ert-kill-temp-test-buffers ()
-  "Delete test buffers from unsuccessful tests."
+The main use of this table is for `ert-kill-all-test-buffers'.
+Not all buffers in this table are necessarily live, but all live
+test buffers are in this table.")
+
+(define-button-type 'ert--test-buffer-button
+  'action #'ert--test-buffer-button-action
+  'help-echo "mouse-2, RET: Pop to test buffer")
+
+(defun ert--test-buffer-button-action (button)
+  (pop-to-buffer (button-get button 'ert--test-buffer)))
+
+(defun ert--run-with-test-buffer (ert--base-name ert--thunk)
+  "Helper function for `ert-with-test-buffer'."
+  (let* ((ert--buffer (generate-new-buffer
+                       (ert--format-test-buffer-name ert--base-name)))
+         (ert--button (ert--text-button (buffer-name ert--buffer)
+                                        :type 'ert--test-buffer-button
+                                        'ert--test-buffer ert--buffer)))
+    (puthash ert--buffer 't ert--test-buffers)
+    ;; We don't use `unwind-protect' here since we want to kill the
+    ;; buffer only on success.
+    (prog1 (with-current-buffer ert--buffer
+             (ert-info (ert--button :prefix "Buffer: ")
+               (funcall ert--thunk)))
+      (kill-buffer ert--buffer)
+      (remhash ert--buffer ert--test-buffers))))
+
+(defmacro* ert-with-test-buffer ((&key ((:name name-form)))
+				 &body body)
+  "Create a test buffer and run BODY in that buffer.
+
+To be used in ERT tests.  If BODY finishes successfully, the test
+buffer is killed; if there is an error, the test buffer is kept
+around on error for further inspection.  Its name is derived from
+the name of the test and the result of NAME-FORM."
+  (declare (debug ((form) body))
+           (indent 1))
+  `(ert--run-with-test-buffer ,name-form (lambda () ,@body)))
+
+;; We use these `put' forms in addition to the (declare (indent)) in
+;; the defmacro form since the `declare' alone does not lead to
+;; correct indentation before the .el/.elc file is loaded.
+;; Autoloading these `put' forms solves this.
+;;;###autoload
+(progn
+  ;; TODO(ohler): Figure out what these mean and make sure they are correct.
+  (put 'ert-with-test-buffer 'lisp-indent-function 1))
+
+(defun ert-kill-all-test-buffers ()
+  "Kill all test buffers that are still live."
   (interactive)
-  (let ((failed (get-buffer ert--list-failed-buffers-name)))
-    (when failed (kill-buffer failed)))
-  (dolist (buf ert--failed-tests-temp-buffers)
-    (when (buffer-live-p buf)
-      (kill-buffer buf)))
-  (setq ert--failed-tests-temp-buffers nil))
-
-(defun ert-list-temp-test-buffers ()
-  "List test buffers from unsuccessful tests."
-  (interactive)
-  (setq ert--failed-tests-temp-buffers
-        (delq nil
-              (mapcar (lambda (buf)
-                        (when (buffer-live-p buf)
-                          buf))
-                      ert--failed-tests-temp-buffers)))
-  (let ((ert-buffer (get-buffer "*ert*"))
-        (buffers ert--failed-tests-temp-buffers))
-    (when ert-buffer (setq buffers (cons ert-buffer buffers)))
-    (switch-to-buffer
-     (let ((Buffer-menu-buffer+size-width 40))
-       (list-buffers-noselect nil buffers)))
-    (rename-buffer ert--list-failed-buffers-name t))
-  (unless ert--failed-tests-temp-buffers
-    (message "No test buffers from unsuccessful tests")))
-
-(defvar ert-temp-test-buffer-minor-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; Add menu bar entries for test buffer and test function
-    (define-key map [(control ?c) ?? ?t] 'ert-temp-test-buffer-go-test)
-    (define-key map [(control ?c) ?? ?f] 'ert-temp-test-buffer-go-file)
-    map))
-(defun ert-temp-test-buffer-go-test ()
-  (interactive)
-  (ert-find-test-other-window ert--temp-test-buffer-test))
-(defun ert-temp-test-buffer-go-file ()
-  (interactive)
-  (find-file-other-window ert--temp-test-buffer-file))
-
-(define-minor-mode ert-temp-test-buffer-minor-mode
-  "Helpers for those buffers ..."
-  )
-(put 'ert-temp-test-buffer-minor-mode 'permanent-local t)
-
-
-(defmacro* ert-with-temp-buffer-include-file (file-name-form &body body)
-  "Insert FILE-NAME-FORM in a temporary buffer and eval BODY.
-If success then delete the temporary buffer, otherwise keep it.
-
-To access these temporary test buffers use
-- `ert-list-temp-test-buffers': list them
-- `ert-kill-temp-test-buffers': delete them"
-  (declare (indent 1) (debug t))
-  (let ((file-name (make-symbol "file-name-")))
-    `(let* ((,file-name (ert-get-test-file-name ,file-name-form))
-            (mode-line-buffer-identification
-             (list (propertize "%b" 'face 'highlight)))
-            ;; Give the buffer a name that allows us to switch to it
-            ;; quickly when debugging a failure.
-            (temp-buf
-             (generate-new-buffer
-              (format "%s" (ert-running-test)))))
-       (unless (file-readable-p ,file-name)
-         (if (file-exists-p ,file-name)
-             (error "Can't read %s" ,file-name)
-           (error "Can't find %s" ,file-name)))
-       (message "Testing with file %s" ,file-name)
-       (push temp-buf ert--failed-tests-temp-buffers)
-       (with-current-buffer temp-buf
-         (ert-temp-test-buffer-minor-mode 1)
-         (setq ert--temp-test-buffer-file ,file-name)
-         (setq ert--temp-test-buffer-test (ert-running-test))
-         ;; Avoid global font lock
-         (let ((font-lock-global-modes nil))
-           ;; Turn off font lock in buffer
-           (font-lock-mode -1)
-           (when (> emacs-major-version 22)
-             (assert (not font-lock-mode) t
-                     "%s %s" "in ert-with-temp-buffer-include-file"))
-           (insert-file-contents ,file-name)
-           (save-window-excursion
-             ;; Switch to buffer so it will show immediately when
-             ;; debugging a failure.
-             (switch-to-buffer-other-window (current-buffer))
-             ,@body)
-           ;; Fix-me: move to success list?
-           (kill-buffer temp-buf))))))
+  (let ((count 0))
+    (maphash (lambda (buffer dummy)
+	       (when (or (not (buffer-live-p buffer))
+			 (kill-buffer buffer))
+		 (incf count)))
+	     ert--test-buffers)
+    (message "%s out of %s test buffers killed"
+	     count (hash-table-count ert--test-buffers)))
+  ;; It could be that some test buffers were actually kept alive
+  ;; (e.g., due to `kill-buffer-query-functions').  I'm not sure what
+  ;; to do about this.  For now, let's just forget them.
+  (clrhash ert--test-buffers)
+  nil)
 
 
 ;;; Simulate commands.

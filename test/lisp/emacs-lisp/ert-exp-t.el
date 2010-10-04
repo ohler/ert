@@ -35,14 +35,14 @@
 ;;; Predicates
 
 (ert-deftest ert-buffer-changes-p ()
-  (with-temp-buffer
+  (ert-with-test-buffer ()
     (should (buffer-changes-p
              (insert "hello")))
     (should-not (buffer-changes-p
                  (message "hello")))))
 
 (ert-deftest ert-buffer-contains-p ()
-  (with-temp-buffer
+  (ert-with-test-buffer ()
     (insert "hello world")
     (should (buffer-contains-p "hello"))
     (should-not (buffer-contains-p "goodbye"))))
@@ -52,11 +52,11 @@
                                "        'elisp)\n"))
         (badly-indented (concat "(hello\n"
                                 "       world)")))
-    (with-temp-buffer
+    (ert-with-test-buffer (:name "well-indented")
       (insert well-indented)
       (emacs-lisp-mode)
       (should (correctly-indented-p)))
-    (with-temp-buffer
+    (ert-with-test-buffer (:name "badly-indented")
       (insert badly-indented)
       (emacs-lisp-mode)
       (should-not (correctly-indented-p)))))
@@ -64,35 +64,41 @@
 
 ;;; Utilities
 
-(ert-deftest ert-with-test-buffer ()
-  (let ((contents "Foo bar\n  baz\n\tbip"))
-    (with-test-buffer contents
-      (should (string-equal (buffer-string) contents)))))
+(defun ert--hash-table-to-alist (table)
+  (let ((accu nil))
+    (maphash (lambda (key value)
+	       (push (cons key value) accu))
+	     table)
+    (nreverse accu)))
 
-(ert-deftest ert-with-test-buffer-inserting ()
-  (let ((contents "Foo bar\n  baz\n\tbip"))
-    (with-test-buffer contents
-      (insert "Hello\n")
-      (should (string-equal (buffer-string) (concat "Hello\n" contents))))))
-
-(ert-deftest ert-with-test-buffer-mark ()
-  (with-test-buffer "Foo<mark> bar baz"
-    (should (string-equal (buffer-substring (point) (mark)) "Foo"))
-    (should (string-equal (buffer-string) "Foo bar baz"))))
-
-(ert-deftest ert-with-test-buffer-fake-mark ()
-  (with-test-buffer "Foo\\<mark> bar baz"
-    (should (string-equal (buffer-string) "Foo<mark> bar baz"))))
-
-(ert-deftest ert-with-test-buffer-point ()
-  (with-test-buffer "Foo bar<point> baz"
-    (insert "bell")
-    (should (string-equal (buffer-string) "Foo barbell baz"))))
-
-(ert-deftest ert-with-test-buffer-mark-and-point ()
-  (with-test-buffer "Foo <mark>bar<point> baz"
-    (upcase-region (mark) (point))
-    (should (string-equal (buffer-string) "Foo BAR baz"))))
+(ert-deftest ert-test-test-buffers ()
+  (let (buffer-1
+        buffer-2)
+    (let ((test-1
+           (make-ert-test
+            :name 'test-1
+            :body (lambda ()
+                    (ert-with-test-buffer (:name "foo")
+                      (should (string-match
+                               "[*]Test buffer (ert-test-test-buffers): foo[*]"
+                               (buffer-name)))
+                      (setq buffer-1 (current-buffer))))))
+          (test-2
+           (make-ert-test
+            :name 'test-2
+            :body (lambda ()
+                    (ert-with-test-buffer (:name "bar")
+                      (should (string-match
+                               "[*]Test buffer (ert-test-test-buffers): bar[*]"
+                               (buffer-name)))
+                      (setq buffer-2 (current-buffer))
+                      (ert-fail "fail for test"))))))
+      (let ((ert--test-buffers (make-hash-table :weakness t)))
+        (ert-run-tests `(member ,test-1 ,test-2) #'ignore)
+        (should (equal (ert--hash-table-to-alist ert--test-buffers)
+                       `((,buffer-2 . t))))
+        (should-not (buffer-live-p buffer-1))
+        (should (buffer-live-p buffer-2))))))
 
 
 (ert-deftest ert-filter-string ()

@@ -319,8 +319,8 @@ description of valid values for RESULT-TYPE.
 
 ;; We use these `put' forms in addition to the (declare (indent)) in
 ;; the defmacro form since the `declare' alone does not lead to
-;; correct indentation before ert.el is loaded.  Autoloading these
-;; `put' forms solves this.
+;; correct indentation before the .el/.elc file is loaded.
+;; Autoloading these `put' forms solves this.
 ;;;###autoload
 (progn
   ;; TODO(ohler): Figure out what these mean and make sure they are correct.
