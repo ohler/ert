@@ -55,8 +55,9 @@ Returns the stats object."
                    (ert--format-time-iso8601 (ert--stats-start-time stats)))))
        (run-ended
         (destructuring-bind (stats abortedp) event-args
-          (let ((unexpected (ert-stats-completed-unexpected stats)))
-            (message "\n%sRan %s tests, %s results as expected%s (%s)\n"
+          (let ((unexpected (ert-stats-completed-unexpected stats))
+                (expected-failures (ert--stats-failed-expected stats)))
+            (message "\n%sRan %s tests, %s results as expected%s (%s)%s\n"
                      (if (not abortedp)
                          ""
                        "Aborted: ")
@@ -65,7 +66,10 @@ Returns the stats object."
                      (if (zerop unexpected)
                          ""
                        (format ", %s unexpected" unexpected))
-                     (ert--format-time-iso8601 (ert--stats-end-time stats)))
+                     (ert--format-time-iso8601 (ert--stats-end-time stats))
+                     (if (zerop expected-failures)
+                         ""
+                       (format "\n%s expected failures" expected-failures)))
             (unless (zerop unexpected)
               (message "%s unexpected results:" unexpected)
               (loop for test across (ert--stats-tests stats)
@@ -79,37 +83,41 @@ Returns the stats object."
         )
        (test-ended
         (destructuring-bind (stats test result) event-args
-          (etypecase result
-            (ert-test-passed)
-            (ert-test-result-with-condition
-             (message "Test %S backtrace:" (ert-test-name test))
-             (with-temp-buffer
-               (ert--print-backtrace (ert-test-result-with-condition-backtrace
-                                      result))
-               (goto-char (point-min))
-               (while (not (eobp))
-                 (let ((start (point))
-                       (end (progn (end-of-line) (point))))
-                   (setq end (min end
-                                  (+ start ert-batch-backtrace-right-margin)))
-                   (message "%s" (buffer-substring-no-properties
-                                  start end)))
-                 (forward-line 1)))
-             (with-temp-buffer
-               (ert--insert-infos result)
-               (insert "    ")
-               (let ((print-escape-newlines t)
-                     (print-level 5)
-                     (print-length 10))
-                 (let ((begin (point)))
-                   (ert--pp-with-indentation-and-newline
-                    (ert-test-result-with-condition-condition result))))
-               (goto-char (1- (point-max)))
-               (assert (looking-at "\n"))
-               (delete-char 1)
-               (message "Test %S condition:" (ert-test-name test))
-               (message "%s" (buffer-string))))
-            (ert-test-aborted-with-non-local-exit))
+          (unless (ert-test-result-expected-p test result)
+            (etypecase result
+              (ert-test-passed
+               (message "Test %S passed unexpectedly" (ert-test-name test)))
+              (ert-test-result-with-condition
+               (message "Test %S backtrace:" (ert-test-name test))
+               (with-temp-buffer
+                 (ert--print-backtrace (ert-test-result-with-condition-backtrace
+                                        result))
+                 (goto-char (point-min))
+                 (while (not (eobp))
+                   (let ((start (point))
+                         (end (progn (end-of-line) (point))))
+                     (setq end (min end
+                                    (+ start ert-batch-backtrace-right-margin)))
+                     (message "%s" (buffer-substring-no-properties
+                                    start end)))
+                   (forward-line 1)))
+               (with-temp-buffer
+                 (ert--insert-infos result)
+                 (insert "    ")
+                 (let ((print-escape-newlines t)
+                       (print-level 5)
+                       (print-length 10))
+                   (let ((begin (point)))
+                     (ert--pp-with-indentation-and-newline
+                      (ert-test-result-with-condition-condition result))))
+                 (goto-char (1- (point-max)))
+                 (assert (looking-at "\n"))
+                 (delete-char 1)
+                 (message "Test %S condition:" (ert-test-name test))
+                 (message "%s" (buffer-string))))
+              (ert-test-aborted-with-non-local-exit
+               (message "Test %S aborted with non-local exit"
+                        (ert-test-name test)))))
           (let* ((max (prin1-to-string (length (ert--stats-tests stats))))
                  (format-string (concat "%9s  %"
                                         (prin1-to-string (length max))
