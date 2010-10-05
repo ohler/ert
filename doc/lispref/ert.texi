@@ -56,6 +56,7 @@ How to Run Tests
 How to Write Tests
 
 * The @code{should} Macro::     A powerful way to express assertions.
+* Expected Failures::           Tests for known bugs.
 * Tests and Their Environment::  Don't depend on customizations; no side effects.
 * Useful Techniques::           Some examples.
 
@@ -122,10 +123,12 @@ will pass if the three calls to @code{equal} all return true
 @code{should} is a macro with the same meaning as @code{assert} but
 better error reporting.  @xref{The @code{should} Macro}.
 
-The names of tests can be chosen arbitrarily --- they are in a
+Each test should have a name that describes what functionality the
+test tests.  Test names can be chosen arbitrarily --- they are in a
 namespace separate from functions and variables --- but should follow
 the usual Emacs Lisp convention of having a prefix that indicates
-which package they belong to.
+which package they belong to.  Test names are displayed by ERT when
+reporting failures and can be used when selecting which tests to run.
 
 The empty parentheses @code{()} in the first line don't currently have
 any meaning and are reserved for future extension.  They also make
@@ -206,14 +209,18 @@ F list-test
                 (different-atoms c d))))
 @end example
 
-At the top, there is a summary of the results.  The line of dots and
-@code{F}s is a progress bar where each character represents one test;
-it fills while the tests are running.  A dot means that the test
-passed, an @code{F} means that it failed.  Below the progress bar, ERT
-shows details about each test that had an unexpected result.  In the
-example above, there are two failures, both due to failed
-@code{should} forms.  @xref{Understanding Explanations}, for more
-details.
+At the top, there is a summary of the results: We ran all tests in the
+current Emacs (@code{Selector: t}), 31 of them passed, and 2 failed
+unexpectedly.  @xref{Expected Failures}, for an explanation of the
+term @emph{unexpected} in this context.
+
+The line of dots and @code{F}s is a progress bar where each character
+represents one test; it fills while the tests are running.  A dot
+means that the test passed, an @code{F} means that it failed.  Below
+the progress bar, ERT shows details about each test that had an
+unexpected result.  In the example above, there are two failures, both
+due to failed @code{should} forms.  @xref{Understanding Explanations},
+for more details.
 
 In the ERT results buffer, @kbd{TAB} and @kbd{S-TAB} cycle between
 buttons.  Each name of a function or macro in this buffer is a button;
@@ -309,20 +316,19 @@ to find where a test was defined if the test was loaded from a file.
 
 @menu
 * The @code{should} Macro::     A powerful way to express assertions.
+* Expected Failures::           Tests for known bugs.
 * Tests and Their Environment::  Don't depend on customizations; no side effects.
 * Useful Techniques::           Some examples.
 @end menu
 
-@node The @code{should} Macro, Tests and Their Environment, How to Write Tests, How to Write Tests
+@node The @code{should} Macro, Expected Failures, How to Write Tests, How to Write Tests
 @section The @code{should} Macro
 
 Test bodies can include arbitrary code; but to be useful, they need to
 have checks whether the code being tested (or @emph{code under test})
 does what it is supposed to do.  The macro @code{should} is similar to
-@code{assert} from the cl package, but signals a different error when
-its condition is violated that is caught and processed by ERT.  In
-addition, it analyzes its argument form and records information that
-helps debugging.
+@code{assert} from the cl package, but analyzes its argument form and
+records information that ERT can display to help debugging.
 
 This test definition
 
@@ -353,15 +359,81 @@ within @code{should}.
 
 In addition to @code{should}, ERT provides @code{should-not}, which
 checks that the predicate returns nil, and @code{should-error}, which
-checks that the form called within it signals an error.  There is no
-@code{should-not-error} macro since tests that signal an error fail
-anyway, so @code{should-not-error} is effectively the default.
+checks that the form called within it signals an error.  An example
+use of @code{should-error}:
+
+@lisp
+(ert-deftest test-divide-by-zero ()
+  (should-error (/ 1 0)
+                :type 'arith-error))
+@end lisp
+
+This checks that dividing one by zero signals an error of type
+@code{arith-error}.  The @code{:type} argument to @code{should-error}
+is optional; if absent, any type of error is accepted.
+
+There is no @code{should-not-error} macro since tests that signal an
+error fail anyway, so @code{should-not-error} is effectively the
+default.
 
 @xref{Understanding Explanations}, for more details on what
 @code{should} reports.
 
 
-@node Tests and Their Environment, Useful Techniques, The @code{should} Macro, How to Write Tests
+@node Expected Failures, Tests and Their Environment, The @code{should} Macro, How to Write Tests
+@section Expected Failures
+
+Some bugs are complicated to fix or not very important and are left as
+@emph{known bugs}.  If there is a test case that triggers the bug and
+fails, ERT will alert you of this failure every time you run all
+tests.  For known bugs, this alert is a distraction.  The way to
+suppress it is to add @code{:expected-result :failed} to the test
+definition:
+
+@lisp
+(ert-deftest future-bug ()
+  "Test `time-forward' with negative arguments.
+Since this functionality isn't implemented yet, the test is known to fail."
+  :expected-result :failed
+  (time-forward -1))
+@end lisp
+
+ERT will still display a small @code{f} in the progress bar as a
+reminder that there is a known bug, and will count the test as failed,
+but it will be quiet about it otherwise.
+
+An alternative to marking the test as a known failure this way is to
+delete the test.  This is a good idea if there is no intent to fix it,
+i.e., if the behavior that was formerly considered a bug has become an
+accepted feature.
+
+In general, however, it can be useful to keep tests that are known to
+fail.  If someone wants to fix the bug, they will have a very good
+starting point: an automated test case that reproduces the bug.  This
+makes it much easier to fix the bug, demonstrate that it is fixed, and
+prevent future regressions.
+
+ERT displays the same kind of alerts for tests that pass unexpectedly
+that it displays for unexpected failures.  This way, if you make code
+changes that happen to fix a bug that you weren't aware of, you will
+know to remove the @code{:expected-result} clause of that test and
+close the corresponding bug report, if any.
+
+Since @code{:expected-result} evaluates its argument when the test is
+loaded, tests can be marked as known failures only on certain Emacs
+versions, specific architectures, etc.:
+
+@lisp
+(ert-deftest foo ()
+  "A test that is expected to fail on Emacs 23 but succeed elsewhere."
+  :expected-result (if (string-match "GNU Emacs 23[.]" (emacs-version))
+                       :failed
+                     :passed)
+  ...)
+@end lisp
+
+
+@node Tests and Their Environment, Useful Techniques, Expected Failures, How to Write Tests
 @section Tests and Their Environment
 
 The outcome of running a test should not depend on the current state
