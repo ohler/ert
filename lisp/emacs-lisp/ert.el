@@ -376,17 +376,14 @@ DATA is displayed to the user and should state the reason of the failure."
                (cl-macroexpand form (and (boundp 'cl-macro-environment)
                                          cl-macro-environment)))
            (macroexpand form))))
-    ;; It's sort of a wart that `inner-expander' can't influence the
-    ;; value the expansion returns.
     (cond
-     ((atom form)
-      (funcall inner-expander form `(list ',whole :form ',form :value ,form)))
-     ((ert--special-operator-p (car form))
+     ((or (atom form) (ert--special-operator-p (car form)))
       (let ((value (ert--gensym "value-")))
         `(let ((,value (ert--gensym "ert-form-evaluation-aborted-")))
            ,(funcall inner-expander
                      `(setq ,value ,form)
-                     `(list ',whole :form ',form :value ,value))
+                     `(list ',whole :form ',form :value ,value)
+                     value)
            ,value)))
      (t
       (let ((fn-name (car form))
@@ -413,7 +410,8 @@ DATA is displayed to the user and should state the reason of the failure."
                                              (get ',fn-name 'ert-explainer))))
                                    (when -explainer-
                                      (list :explanation
-                                           (apply -explainer- ,args))))))
+                                           (apply -explainer- ,args)))))
+                         value)
                ,value))))))))
 
 (defun ert--expand-should (whole form inner-expander)
@@ -434,7 +432,7 @@ FORM-DESCRIPTION-FORM before it has called INNER-FORM."
   (lexical-let ((inner-expander inner-expander))
     (ert--expand-should-1
      whole form
-     (lambda (inner-form form-description-form)
+     (lambda (inner-form form-description-form value-var)
        (let ((form-description (ert--gensym "form-description-")))
          `(let (,form-description)
             ,(funcall inner-expander
@@ -442,14 +440,15 @@ FORM-DESCRIPTION-FORM before it has called INNER-FORM."
                            ,inner-form
                          (setq ,form-description ,form-description-form)
                          (ert--signal-should-execution ,form-description))
-                      `,form-description)))))))
+                      `,form-description
+                      value-var)))))))
 
 (defmacro* should (form)
   "Evaluate FORM.  If it returns nil, abort the current test as failed.
 
 Returns the value of FORM."
   (ert--expand-should `(should ,form) form
-                      (lambda (inner-form form-description-form)
+                      (lambda (inner-form form-description-form value-var)
                         `(unless ,inner-form
                            (ert-fail ,form-description-form)))))
 
@@ -458,16 +457,16 @@ Returns the value of FORM."
 
 Returns nil."
   (ert--expand-should `(should-not ,form) form
-                      (lambda (inner-form form-description-form)
+                      (lambda (inner-form form-description-form value-var)
                         `(unless (not ,inner-form)
                            (ert-fail ,form-description-form)))))
 
 (defun ert--should-error-handle-error (form-description-fn
-                                       condition type exclude-subtypes test)
+                                       condition type exclude-subtypes)
   "Helper function for `should-error'.
 
-Determines whether CONDITION matches TYPE, EXCLUDE-SUBTYPES and
-TEST, and aborts the current test as failed if it doesn't."
+Determines whether CONDITION matches TYPE and EXCLUDE-SUBTYPES,
+and aborts the current test as failed if it doesn't."
   (let ((signalled-conditions (get (car condition) 'error-conditions))
         (handled-conditions (etypecase type
                               (list type)
@@ -487,33 +486,28 @@ TEST, and aborts the current test as failed if it doesn't."
                    (list
                     :condition condition
                     :fail-reason (concat "the error signalled was a subtype"
-                                         " of the expected type"))))))
-    (unless (funcall test condition)
-      (ert-fail (append
-                 (funcall form-description-fn)
-                 (list
-                  :condition condition
-                  :fail-reason "the error signalled did not pass the test"))))))
+                                         " of the expected type"))))))))
 
 ;; FIXME: The expansion will evaluate the keyword args (if any) in
 ;; nonstandard order.
-(defmacro* should-error (form &rest keys &key type exclude-subtypes test)
-  "Evaluate FORM.  Unless it signals an error, abort the current test as failed.
+(defmacro* should-error (form &rest keys &key type exclude-subtypes)
+  "Evaluate FORM and check that it signals an error.
 
-The error signalled additionally needs to match TYPE and satisfy
-TEST.  TYPE should be a condition name or a list of condition
-names.  If EXCLUDE-SUBTYPES is nil, the error matches TYPE if one
-of its condition names is an element of TYPE.  If
-EXCLUDE-SUBTYPES is non-nil, the error matches TYPE if it is an
-element of TYPE.  TEST should be a predicate."
-  ;; Returns a gensym named `ert-form-evaluation-aborted-XXX', but
-  ;; that's a wart, so let's not document it.
+The error signalled needs to match TYPE.  TYPE should be a list
+of condition names.  (It can also be a non-nil symbol, which is
+equivalent to a singleton list containing that symbol.)  If
+EXCLUDE-SUBTYPES is nil, the error matches TYPE if one of its
+condition names is an element of TYPE.  If EXCLUDE-SUBTYPES is
+non-nil, the error matches TYPE if it is an element of TYPE.
+
+If the error matches, returns (ERROR-SYMBOL . DATA) from the
+error.  If not, or if no error was signalled, abort the test as
+failed."
   (unless type (setq type ''error))
-  (unless test (setq test '(lambda (condition) t)))
   (ert--expand-should
    `(should-error ,form ,@keys)
    form
-   (lambda (inner-form form-description-form)
+   (lambda (inner-form form-description-form value-var)
      (let ((errorp (ert--gensym "errorp"))
            (form-description-fn (ert--gensym "form-description-fn-")))
        `(let ((,errorp nil)
@@ -525,11 +519,8 @@ element of TYPE.  TEST should be a predicate."
              (setq ,errorp t)
              (ert--should-error-handle-error ,form-description-fn
                                              -condition-
-                                             ,type ,exclude-subtypes ,test)
-             ;; It would make sense to have the `should-error' form
-             ;; return the error in this case, but `ert--expand-should'
-             ;; doesn't allow that at the moment.
-             ))
+                                             ,type ,exclude-subtypes)
+             (setq ,value-var -condition-)))
           (unless ,errorp
             (ert-fail (append
                        (funcall ,form-description-fn)

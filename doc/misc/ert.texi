@@ -371,6 +371,9 @@ use of @code{should-error}:
 This checks that dividing one by zero signals an error of type
 @code{arith-error}.  The @code{:type} argument to @code{should-error}
 is optional; if absent, any type of error is accepted.
+@code{should-error} returns an error description of the error that was
+signalled, to allow additional checks to be made.  The error
+description has the format @code{(ERROR-SYMBOL . DATA)}.
 
 There is no @code{should-not-error} macro since tests that signal an
 error fail anyway, so @code{should-not-error} is effectively the

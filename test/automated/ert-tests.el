@@ -216,10 +216,9 @@ failed or if there was a problem."
                         :value nil
                         :fail-reason "did not signal an error"))))))
   ;; A simple error.
-  (let ((test (make-ert-test :body (lambda () (should-error (error "Foo"))))))
-    (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-passed))))
-  ;; Error of unexpected type, no test.
+  (should (equal (should-error (error "Foo"))
+                 '(error "Foo")))
+  ;; Error of unexpected type.
   (let ((test (make-ert-test :body (lambda ()
                                      (should-error (error "Foo")
                                                    :type 'singularity-error)))))
@@ -233,67 +232,21 @@ failed or if there was a problem."
                   :condition (error "Foo")
                   :fail-reason
                   "the error signalled did not have the expected type"))))))
-  ;; Error of the expected type, no test.
-  (let ((test (make-ert-test :body (lambda ()
-                                     (should-error (signal 'singularity-error
-                                                           nil)
-                                                   :type 'singularity-error)))))
+  ;; Error of the expected type.
+  (let* ((error nil)
+         (test (make-ert-test
+                :body (lambda ()
+                        (setq error
+                              (should-error (signal 'singularity-error nil)
+                                            :type 'singularity-error))))))
     (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-passed))))
-  ;; Error that fails the test, no type.
-  (let ((test (make-ert-test :body (lambda ()
-                                     (should-error
-                                      (error "Foo")
-                                      :test (lambda (error) nil))))))
-    (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-failed))
-      (should (equal (ert-test-result-with-condition-condition result)
-                     '(ert-test-failed
-                       ((should-error (error "Foo") :test (lambda (error) nil))
-                        :form (error "Foo")
-                        :condition (error "Foo")
-                        :fail-reason
-                        "the error signalled did not pass the test"))))))
-  ;; Error that passes the test, no type.
-  (let ((test (make-ert-test :body (lambda ()
-                                     (should-error (error "Foo")
-                                                   :test (lambda (error) t))))))
-    (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-passed))))
-  ;; Error that has the expected type but fails the test.
-  (let ((test (make-ert-test :body (lambda ()
-                                     (should-error
-                                      (signal 'singularity-error nil)
-                                      :type 'singularity-error
-                                      :test (lambda (error) nil))))))
-    (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-failed))
-      (should (equal (ert-test-result-with-condition-condition result)
-                     '(ert-test-failed
-                       ((should-error (signal 'singularity-error nil)
-                                      :type 'singularity-error
-                                      :test (lambda (error) nil))
-                        :form (signal singularity-error nil)
-                        :condition (singularity-error)
-                        :fail-reason
-                        "the error signalled did not pass the test"))))))
-  ;; Error that has the expected type and passes the test.
-  (let ((test (make-ert-test :body (lambda ()
-                                     (should-error
-                                      (signal 'singularity-error nil)
-                                      :type 'singularity-error
-                                      :test (lambda (error) t))))))
-    (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-passed)))))
+      (should (typep result 'ert-test-passed))
+      (should (equal error '(singularity-error))))))
 
 (ert-deftest ert-test-should-error-subtypes ()
-  (let ((test (make-ert-test
-               :body (lambda ()
-                       (should-error (signal 'singularity-error nil)
-                                     :type 'singularity-error
-                                     :exclude-subtypes t)))))
-    (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-passed))))
+  (should-error (signal 'singularity-error nil)
+                :type 'singularity-error
+                :exclude-subtypes t)
   (let ((test (make-ert-test
                :body (lambda ()
                        (should-error (signal 'arith-error nil)

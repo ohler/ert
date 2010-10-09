@@ -221,10 +221,8 @@
   (save-window-excursion
     (ert-with-buffer-renamed ("*Help*")
       (if (< emacs-major-version 24)
-          (should-error (ert-describe-test 'ert-describe-test)
-                        :test (lambda (condition)
-                                (should (equal condition
-                                               '(error "Requires Emacs 24")))))
+          (should (equal (should-error (ert-describe-test 'ert-describe-test))
+                         '(error "Requires Emacs 24")))
         (ert-describe-test 'ert-test-describe-test)
         (with-current-buffer "*Help*"
           (let ((case-fold-search nil))
