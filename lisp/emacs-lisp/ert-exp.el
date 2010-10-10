@@ -2,7 +2,6 @@
 
 ;; Copyright (C) 2008 Phil Hagelberg
 
-;; Author: Phil Hagelberg
 ;; Author: Lennart Borgman (lennart O borgman A gmail O com)
 ;; Author: Christian M. Ohler
 
@@ -34,42 +33,8 @@
 
 (eval-when-compile
   (require 'cl))
-(require 'ert-ui)
-
-(defmacro buffer-changes-p (&rest body)
-  "Execute BODY and return true if it changed the buffer content."
-  (let ((original-buffer-content (make-symbol "original-buffer-content")))
-    `(let ((,original-buffer-content (buffer-string)))
-       (progn ,@body
-              (not (string= ,original-buffer-content
-                            (buffer-string)))))))
-
-(defun buffer-contains-p (regexp &optional buffer)
-  "Return true if REGEXP is found anywhere in BUFFER (default current buffer)."
-  (with-current-buffer (or buffer (current-buffer))
-    (save-excursion
-      (goto-char (point-min))
-      (not (not (search-forward-regexp regexp nil t))))))
-
-;; TODO(ohler): modify this to allow better error reporting in the
-;; case of failure, e.g., by changing it to
-;; `should-be-correctly-indented' or
-;; `buffer-contents-after-reindentation', or add an explainer.
-(defun correctly-indented-p (&optional buffer)
-  "Return true if BUFFER is indented the way Emacs would indent it.
-
-BUFFER defaults to current buffer."
-  (with-current-buffer (or buffer (current-buffer))
-    (with-current-buffer
-        (let ((buffer-file-name nil)) ; otherwise clone-buffer would refuse
-          (clone-buffer))
-      (unwind-protect
-          (let ((buffer-original-indentation (buffer-string)))
-            (indent-region (point-min) (point-max))
-            (let ((buffer-new-indentation (buffer-string)))
-              (string= buffer-original-indentation buffer-new-indentation)))
-        (let ((kill-buffer-query-functions nil))
-          (kill-buffer nil))))))
+(require 'ert)
+(require 'ert-run)
 
 
 ;;; Test buffers.
@@ -106,7 +71,7 @@ test buffers are in this table.")
 (defun ert--test-buffer-button-action (button)
   (pop-to-buffer (button-get button 'ert--test-buffer)))
 
-(defun ert--run-with-test-buffer (ert--base-name ert--thunk)
+(defun ert--call-with-test-buffer (ert--base-name ert--thunk)
   "Helper function for `ert-with-test-buffer'."
   (let* ((ert--buffer (generate-new-buffer
                        (ert--format-test-buffer-name ert--base-name)))
@@ -132,7 +97,7 @@ around on error for further inspection.  Its name is derived from
 the name of the test and the result of NAME-FORM."
   (declare (debug ((form) body))
            (indent 1))
-  `(ert--run-with-test-buffer ,name-form (lambda () ,@body)))
+  `(ert--call-with-test-buffer ,name-form (lambda () ,@body)))
 
 ;; We use these `put' forms in addition to the (declare (indent)) in
 ;; the defmacro form since the `declare' alone does not lead to
@@ -143,6 +108,7 @@ the name of the test and the result of NAME-FORM."
   ;; TODO(ohler): Figure out what these mean and make sure they are correct.
   (put 'ert-with-test-buffer 'lisp-indent-function 1))
 
+;;;###autoload
 (defun ert-kill-all-test-buffers ()
   "Kill all test buffers that are still live."
   (interactive)
@@ -190,7 +156,6 @@ Return the value of calling the command, ie
   (apply (car COMMAND) (cdr COMMAND)).
 
 Run the hook `ert-simulate-command-post-hook' at the very end."
-
   (message "command=%s" command)
   (should (listp command))
   (should (commandp (car command)))
@@ -241,7 +206,7 @@ Run the hook `ert-simulate-command-post-hook' at the very end."
     return-value))
 
 
-;;; More general utilities.
+;;; Miscellaneous utilities.
 
 (defun ert-filter-string (s &rest regexps)
   "Return a copy of S with all matches of REGEXPS removed.
@@ -272,7 +237,8 @@ property list, or no properties if there is no plist before it.
 
 As a simple example,
 
-\(ert-propertized-string \"foo \" '(face italic) \"bar\" \" baz\" nil \" quux\"\)
+\(ert-propertized-string \"foo \" '(face italic) \"bar\" \" baz\" nil \
+\" quux\"\)
 
 would return the string \"foo bar baz quux\" where the substring
 \"bar baz\" has a `face' property with the value `italic'.
@@ -320,6 +286,26 @@ buffer with a fixed name such as *Messages*."
 See `ert-call-with-buffer-renamed' for details."
   (declare (indent 1))
   `(ert-call-with-buffer-renamed ,buffer-name-form (lambda () ,@body)))
+
+
+(defun ert-buffer-string-reindented (&optional buffer)
+  "Return the contents of BUFFER after reindentation.
+
+BUFFER defaults to current buffer.  Does not modify BUFFER."
+  (with-current-buffer (or buffer (current-buffer))
+    (let ((clone nil))
+      (unwind-protect
+          (progn
+            ;; `clone-buffer' doesn't work if `buffer-file-name' is non-nil.
+            (let ((buffer-file-name nil))
+              (setq clone (clone-buffer)))
+            (with-current-buffer clone
+              (let ((inhibit-read-only t))
+                (indent-region (point-min) (point-max)))
+              (buffer-string)))
+        (when clone
+          (let ((kill-buffer-query-functions nil))
+            (kill-buffer clone)))))))
 
 
 (provide 'ert-exp)

@@ -29,40 +29,23 @@
 
 (require 'ert)
 (require 'ert-exp)
+(require 'ert-ui)
 (eval-when-compile
   (require 'cl))
 
-;;; Predicates
-
-(ert-deftest ert-buffer-changes-p ()
-  (ert-with-test-buffer ()
-    (should (buffer-changes-p
-             (insert "hello")))
-    (should-not (buffer-changes-p
-                 (message "hello")))))
-
-(ert-deftest ert-buffer-contains-p ()
-  (ert-with-test-buffer ()
-    (insert "hello world")
-    (should (buffer-contains-p "hello"))
-    (should-not (buffer-contains-p "goodbye"))))
-
-(ert-deftest ert-correctly-indented-p ()
-  (let ((well-indented (concat "(hello (world\n"
-                               "        'elisp)\n"))
-        (badly-indented (concat "(hello\n"
-                                "       world)")))
-    (ert-with-test-buffer (:name "well-indented")
-      (insert well-indented)
-      (emacs-lisp-mode)
-      (should (correctly-indented-p)))
-    (ert-with-test-buffer (:name "badly-indented")
-      (insert badly-indented)
-      (emacs-lisp-mode)
-      (should-not (correctly-indented-p)))))
-
-
 ;;; Utilities
+
+(ert-deftest ert-test-buffer-string-reindented ()
+  (ert-with-test-buffer (:name "well-indented")
+    (insert (concat "(hello (world\n"
+                    "        'elisp)\n"))
+    (emacs-lisp-mode)
+    (should (equal (ert-buffer-string-reindented) (buffer-string))))
+  (ert-with-test-buffer (:name "badly-indented")
+    (insert (concat "(hello\n"
+                    "       world)"))
+    (emacs-lisp-mode)
+    (should-not (equal (ert-buffer-string-reindented) (buffer-string)))))
 
 (defun ert--hash-table-to-alist (table)
   (let ((accu nil))
