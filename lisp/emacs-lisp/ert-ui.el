@@ -271,11 +271,15 @@ determines how frequently the progress display is updated.")
   "Update EWOC and the mode line to show data from STATS."
   ;; TODO(ohler): investigate using `make-progress-reporter'.
   (ert--results-update-ewoc-hf ewoc stats)
+  (force-mode-line-update)
+  (redisplay t)
+  (setf (ert--stats-next-redisplay stats)
+        (+ (float-time) ert-test-run-redisplay-interval-secs)))
+
+(defun ert--results-update-stats-display-maybe (ewoc stats)
+  "Call `ert--results-update-stats-display' if not called recently."
   (when (>= (float-time) (ert--stats-next-redisplay stats))
-    (force-mode-line-update)
-    (redisplay t)
-    (setf (ert--stats-next-redisplay stats)
-          (+ (float-time) ert-test-run-redisplay-interval-secs))))
+    (ert--results-update-stats-display ewoc stats)))
 
 (defun ert--tests-running-mode-line-indicator ()
   "Return a string for the mode line that shows the test run progress."
@@ -488,7 +492,7 @@ and how to display message."
                      (setf (ert--ewoc-entry-test (ewoc-data node)) test)
                      (aset ert--results-progress-bar-string pos
                            (ert-char-for-test-result nil t))
-                     (ert--results-update-stats-display ewoc stats)
+                     (ert--results-update-stats-display-maybe ewoc stats)
                      (ewoc-invalidate ewoc node)))))
               (test-ended
                (destructuring-bind (stats test result) event-args
@@ -503,7 +507,7 @@ and how to display message."
                            (ert-char-for-test-result result
                                                      (ert-test-result-expected-p
                                                       test result)))
-                     (ert--results-update-stats-display ewoc stats)
+                     (ert--results-update-stats-display-maybe ewoc stats)
                      (ewoc-invalidate ewoc node))))))))
     (ert-run-tests
      selector
