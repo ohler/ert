@@ -111,7 +111,7 @@ This patch file is used by install.sh.
  
  # The subdir makefiles created by config.status.
 -SUBDIR_MAKEFILES = lib-src/Makefile doc/emacs/Makefile doc/misc/Makefile doc/lispref/Makefile doc/lispintro/Makefile src/Makefile oldXMenu/Makefile lwlib/Makefile leim/Makefile lisp/Makefile
-+SUBDIR_MAKEFILES = lib-src/Makefile doc/emacs/Makefile doc/misc/Makefile doc/lispref/Makefile doc/lispintro/Makefile src/Makefile oldXMenu/Makefile lwlib/Makefile leim/Makefile lisp/Makefile test/Makefile
++SUBDIR_MAKEFILES = lib-src/Makefile doc/emacs/Makefile doc/misc/Makefile doc/lispref/Makefile doc/lispintro/Makefile src/Makefile oldXMenu/Makefile lwlib/Makefile leim/Makefile lisp/Makefile test/automated/Makefile
  
  # Subdirectories to install, and where they'll go.
  # lib-src's makefile knows how to install it, so we don't do that here.
@@ -121,7 +121,7 @@ This patch file is used by install.sh.
            $(srcdir)/leim/Makefile.in \
 -          $(srcdir)/lisp/Makefile.in
 +          $(srcdir)/lisp/Makefile.in \
-+	  $(srcdir)/test/automated/Makefile.in
++          $(srcdir)/test/automated/Makefile.in
  	./config.status
  
  config.status: ${srcdir}/configure ${srcdir}/lisp/version.el
@@ -134,3 +134,66 @@ This patch file is used by install.sh.
  
  dist:
  	cd ${srcdir}; ./make-dist
+--- etc/NEWS	2010-10-08 03:17:31 +0000
++++ etc/NEWS	2010-10-10 12:06:45 +0000
+@@ -195,6 +195,10 @@
+ `package-enable-at-startup' to nil.  To change which packages are
+ loaded, customize `package-load-list'.
+ 
++** An Emacs Lisp testing framework is now included.
++Emacs Lisp developers can use this to write automated tests for their
++code.  See the ERT info manual for details.
++
+ ** The user option `remote-file-name-inhibit-cache' controls whether
+ the remote file-name cache is used for read access.
+ 
+--- ChangeLog	2010-10-09 18:46:57 +0000
++++ ChangeLog	2010-10-10 11:53:42 +0000
+@@ -0,0 +1,9 @@
++2010-10-10  Christian Ohler  <ohler+emacs@fastmail.net>
++
++	* Makefile.in (INFO_FILES): Add ERT.
++
++	* Makefile.in (check): Run tests in test/automated.
++
++	* Makefile.in:
++	* configure.in: Add test/automated/Makefile.
++
+--- doc/misc/ChangeLog	2010-10-10 00:15:21 +0000
++++ doc/misc/ChangeLog	2010-10-10 11:49:04 +0000
+@@ -0,0 +1,7 @@
++2010-10-10  Christian Ohler  <ohler+emacs@fastmail.net>
++
++	* ert.texi: New file.
++
++	* Makefile.in:
++	* makefile.w32-in: Add ert.texi.
++
+=== modified file 'etc/ChangeLog'
+--- etc/ChangeLog	2010-09-23 19:00:31 +0000
++++ etc/ChangeLog	2010-10-10 11:55:10 +0000
+@@ -0,0 +1,4 @@
++2010-10-10  Christian Ohler  <ohler+emacs@fastmail.net>
++
++	* NEWS: Mention ERT.
++
+--- lisp/ChangeLog	2010-10-10 03:40:58 +0000
++++ lisp/ChangeLog	2010-10-10 11:58:24 +0000
+@@ -0,0 +1,6 @@
++2010-10-10  Christian Ohler  <ohler+emacs@fastmail.net>
++
++	* emacs/lisp/ert.el, emacs/lisp/ert-run.el:
++	* emacs/lisp/ert-batch.el, emacs/lisp/ert-ui.el:
++	* emacs/lisp/ert-x.el: New files.
++
+--- test/ChangeLog	2010-09-20 14:57:01 +0000
++++ test/ChangeLog	2010-10-10 11:59:53 +0000
+@@ -0,0 +1,8 @@
++2010-10-10  Christian Ohler  <ohler+emacs@fastmail.net>
++
++	* automated: New directory for automated tests.
++
++	* automated/ert-tests.el, automated/ert-x-tests.el: New files.
++
++	* automated/Makefile.in: New file.
++
