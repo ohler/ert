@@ -1,6 +1,6 @@
-\input texinfo.tex    @c -*-texinfo-*-
+\input texinfo
 @c %**start of header
-@setfilename ert.info
+@setfilename ../../info/ert
 @settitle Emacs Lisp Regression Testing
 @c %**end of header
 
