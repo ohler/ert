@@ -1,4 +1,4 @@
-;;; ert-exp-t.el --- Tests for ert-exp.el
+;;; ert-x-tests.el --- Tests for ert-x.el
 
 ;; Copyright (C) 2008, 2010 Free Software Foundation, Inc.
 
@@ -28,7 +28,7 @@
 ;;; Code:
 
 (require 'ert)
-(require 'ert-exp)
+(require 'ert-x)
 (require 'ert-ui)
 (eval-when-compile
   (require 'cl))
@@ -100,7 +100,7 @@
            #("foo bar baz quux" 4 11 (face italic)))))
 
 
-;;; Tests for ERT itself that require test features from ert-exp.el.
+;;; Tests for ERT itself that require test features from ert-x.el.
 
 (ert-deftest ert-test-run-tests-interactively-2 ()
   :tags '(:causes-redisplay)
@@ -211,7 +211,7 @@
           (let ((case-fold-search nil))
             (should (string-match (concat
                                    "\\`ert-test-describe-test is a test"
-                                   " defined in `ert-exp-t.elc?'\\.\n\n"
+                                   " defined in `ert-x-tests.elc?'\\.\n\n"
                                    "Tests `ert-describe-test'\\.\n\\'")
                                   (buffer-string)))))))))
 
@@ -270,6 +270,6 @@ desired effect."
           (should (equal (c x) (lisp x))))))
 
 
-(provide 'ert-exp-t)
+(provide 'ert-x-tests)
 
-;;; ert-exp-t.el ends here
+;;; ert-x-tests.el ends here

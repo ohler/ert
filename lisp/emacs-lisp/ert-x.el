@@ -1,4 +1,4 @@
-;;; ert-exp.el --- Staging area for experimental extensions to ERT
+;;; ert-x.el --- Staging area for experimental extensions to ERT
 
 ;; Copyright (C) 2008, 2010 Free Software Foundation, Inc.
 
@@ -25,9 +25,6 @@
 ;; This file includes some extra helper functions to use while writing
 ;; automated tests with ERT.  These have been proposed as extensions
 ;; to ERT but are not mature yet and likely to change.
-;;
-;; Since it is not meant to be loaded during normal use, this file
-;; includes functions that are not prefixed for readability's sake.
 
 ;;; Code:
 
@@ -282,6 +279,6 @@ BUFFER defaults to current buffer.  Does not modify BUFFER."
             (kill-buffer clone)))))))
 
 
-(provide 'ert-exp)
+(provide 'ert-x)
 
-;;; ert-exp.el ends here
+;;; ert-x.el ends here
