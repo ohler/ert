@@ -24,7 +24,7 @@ fi
 mkdir -p test/automated
 
 for i in $lispfiles $testfiles $docfiles; do
-    cp -- "$origdir/$i" "$i"
+    sed -e 's/NOT \(part of GNU Emacs\)/\1/' < "$origdir/$i" > "$i"
 done
 bzr add $lispfiles $testfiles $docfiles
 
