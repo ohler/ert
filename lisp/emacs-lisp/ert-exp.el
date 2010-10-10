@@ -129,81 +129,55 @@ the name of the test and the result of NAME-FORM."
 
 ;;; Simulate commands.
 
-(defvar ert-simulate-command-delay nil)
+(defun ert-simulate-command (command)
+  ;; FIXME: add unread-events
+  "Simulate calling COMMAND the way the Emacs command loop would call it.
 
-(defvar ert-simulate-command-post-hook nil
-  "Normal hook to be run at end of `ert-simulate-command'.")
+This effectively executes
 
-;; Avoid warning in old Emacsen.
-(defvar last-repeatable-command)
+  \(apply (car COMMAND) (cdr COMMAND)\)
 
-;; Fix-me: use this in all tests where applicable.
-(defun ert-simulate-command (command run-idle-timers)
-  ;; Fix-me: run-idle-timers - use seconds
-  ;; Fix-me: add unread-events
-  "Simulate calling command COMMAND as in Emacs command loop.
-If RUN-IDLE-TIMERS is non-nil then run the idle timers after
-calling everything involved with the command.
+and returns the same value, but additionally runs hooks like
+`pre-command-hook' and `post-command-hook', and sets variables
+like `this-command' and `last-command'.
 
 COMMAND should be a list where the car is the command symbol and
 the rest are arguments to the command.
 
 NOTE: Since the command is not called by `call-interactively'
-test for `called-interactively' in the command will fail.
-
-Return the value of calling the command, ie
-
-  (apply (car COMMAND) (cdr COMMAND)).
-
-Run the hook `ert-simulate-command-post-hook' at the very end."
-  (message "command=%s" command)
-  (should (listp command))
-  (should (commandp (car command)))
-  (should (not unread-command-events))
-  (let (return-value
-        (font-lock-mode t))
-    ;; For the order of things here see command_loop_1 in keyboard.c
+test for `called-interactively' in the command will fail."
+  (assert (listp command) t)
+  (assert (commandp (car command)) t)
+  (assert (not unread-command-events) t)
+  (let (return-value)
+    ;; For the order of things here see command_loop_1 in keyboard.c.
     ;;
-    ;; The command loop will reset the command related variables so
-    ;; there is no reason to let bind them. They are set here however
-    ;; to be able to test several commands in a row and how they
-    ;; affect each other.
-    (setq deactivate-mark nil)
-    (setq this-original-command (car command))
-    ;; remap through active keymaps
-    (setq this-command (or (command-remapping this-original-command)
+    ;; The command loop will reset the command-related variables so
+    ;; there is no reason to let-bind them. They are set here,
+    ;; however, to be able to test several commands in a row and how
+    ;; they affect each other.
+    (setq deactivate-mark nil
+          this-original-command (car command)
+          ;; remap through active keymaps
+          this-command (or (command-remapping this-original-command)
                            this-original-command))
     (run-hooks 'pre-command-hook)
-    (setq return-value (apply (car command) (cdr command))) ;; <-----
-    (message "post-command-hook=%s" post-command-hook)
+    (setq return-value (apply (car command) (cdr command)))
     (run-hooks 'post-command-hook)
     (when deferred-action-list
-      (run-hooks 'deferred_action_function))
-    (setq real-last-command (car command))
-    (setq last-repeatable-command real-last-command)
-    (setq last-command this-command)
+      (run-hooks 'deferred-action-function))
+    (setq real-last-command (car command)
+          last-command this-command)
+    (when (boundp 'last-repeatable-command)
+      (setq last-repeatable-command real-last-command))
     (when (and deactivate-mark transient-mark-mode) (deactivate-mark))
-    ;;(message "ert-simulate-command.before idle-timers, point=%s" (point))
-    (when run-idle-timers
-      ;;(dolist (timer (copy-list timer-idle-list))
-      (dolist (timer (copy-sequence timer-idle-list))
-        (timer-event-handler timer)
-        ;;(message "   after timer=%s, point=%s" timer (point))
-        )
-      (redisplay t))
-    ;;(message "ert-simulate-command.after  idle-timers, point=%s" (point))
-    (when ert-simulate-command-delay
-      ;; Show user
-      ;;(message "After M-x %s" command)
-      (let ((old-buffer-name (buffer-name)))
-        (rename-buffer (propertize (format "After M-x %s" (car command))
-                                   'face 'highlight)
-                       t)
-        (sit-for ert-simulate-command-delay)
-        (rename-buffer old-buffer-name)))
-    (should (not unread-command-events))
-    (run-hooks 'ert-simulate-command-post-hook)
+    (assert (not unread-command-events) t)
     return-value))
+
+(defun ert-run-idle-timers ()
+  "Runs all idle timers (from `timer-idle-list')."
+  (dolist (timer (copy-sequence timer-idle-list))
+    (timer-event-handler timer)))
 
 
 ;;; Miscellaneous utilities.
