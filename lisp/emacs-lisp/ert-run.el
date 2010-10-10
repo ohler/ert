@@ -1,6 +1,6 @@
 ;;; ert-run.el --- ERT's internal infrastructure for running tests
 
-;; Copyright (C) 2007, 2008, 2010 Christian M. Ohler
+;; Copyright (C) 2007, 2008, 2010 Free Software Foundation, Inc.
 
 ;; Author: Christian M. Ohler
 

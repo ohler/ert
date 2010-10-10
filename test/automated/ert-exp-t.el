@@ -1,6 +1,6 @@
 ;;; ert-exp-t.el --- Tests for ert-exp.el
 
-;; Copyright (C) 2008 Phil Hagelberg
+;; Copyright (C) 2008, 2010 Free Software Foundation, Inc.
 
 ;; Author: Phil Hagelberg
 ;; Author: Christian M. Ohler

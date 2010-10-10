@@ -1,6 +1,6 @@
 ;;; ert-exp.el --- Staging area for experimental extensions to ERT
 
-;; Copyright (C) 2008 Phil Hagelberg
+;; Copyright (C) 2008, 2010 Free Software Foundation, Inc.
 
 ;; Author: Lennart Borgman (lennart O borgman A gmail O com)
 ;; Author: Christian M. Ohler
