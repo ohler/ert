@@ -173,7 +173,7 @@ Like `mismatch'.  Uses `equal' for comparison."
                                    nil)))))))
 
 (defun ert--subseq (seq start &optional end)
-  "Returns a subsequence of SEQ from START to END."
+  "Return a subsequence of SEQ from START to END."
   (when (char-table-p seq) (error "Not supported"))
   (let ((vector (substring (ert--coerce-to-vector seq) start end)))
     (etypecase seq

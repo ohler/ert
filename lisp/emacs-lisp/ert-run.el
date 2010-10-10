@@ -526,7 +526,7 @@ Returns the name of TEST if it has one, or TEST itself otherwise."
   (or (ert-test-name test) test))
 
 (defun ert--stats-set-test-and-result (stats pos test result)
-  "Changes STATS by replacing the test at position POS with TEST and RESULT.
+  "Change STATS by replacing the test at position POS with TEST and RESULT.
 
 Also changes the counters in STATS to match."
   (let* ((tests (ert--stats-tests stats))

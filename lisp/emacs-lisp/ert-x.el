@@ -46,6 +46,9 @@ See `make-text-button'."
     (buffer-string)))
 
 (defun ert--format-test-buffer-name (base-name)
+  "Compute a test buffer name based on BASE-NAME.
+
+Helper function for `ert--test-buffers'."
   (format "*Test buffer (%s)%s*"
 	  (or (and (ert-running-test)
 		   (ert-test-name (ert-running-test)))
@@ -66,10 +69,14 @@ test buffers are in this table.")
   'help-echo "mouse-2, RET: Pop to test buffer")
 
 (defun ert--test-buffer-button-action (button)
+  "Pop to the test buffer that BUTTON is associated with."
   (pop-to-buffer (button-get button 'ert--test-buffer)))
 
 (defun ert--call-with-test-buffer (ert--base-name ert--thunk)
-  "Helper function for `ert-with-test-buffer'."
+  "Helper function for `ert-with-test-buffer'.
+
+Create a test buffer with a name based on ERT--BASE-NAME and run
+ERT--THUNK with that buffer as current."
   (let* ((ert--buffer (generate-new-buffer
                        (ert--format-test-buffer-name ert--base-name)))
          (ert--button (ert--text-button (buffer-name ert--buffer)
@@ -172,7 +179,7 @@ test for `called-interactively' in the command will fail."
     return-value))
 
 (defun ert-run-idle-timers ()
-  "Runs all idle timers (from `timer-idle-list')."
+  "Run all idle timers (from `timer-idle-list')."
   (dolist (timer (copy-sequence timer-idle-list))
     (timer-event-handler timer)))
 
