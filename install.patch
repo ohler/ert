@@ -179,12 +179,10 @@ This patch file is used by install.sh.
 +
 --- lisp/ChangeLog	2010-10-10 03:40:58 +0000
 +++ lisp/ChangeLog	2010-10-10 11:58:24 +0000
-@@ -0,0 +1,6 @@
+@@ -0,0 +1,4 @@
 +2010-10-10  Christian Ohler  <ohler+emacs@fastmail.net>
 +
-+	* emacs/lisp/ert.el, emacs/lisp/ert-run.el:
-+	* emacs/lisp/ert-batch.el, emacs/lisp/ert-ui.el:
-+	* emacs/lisp/ert-x.el: New files.
++	* emacs/lisp/ert.el, emacs/lisp/ert-x.el: New files.
 +
 --- test/ChangeLog	2010-09-20 14:57:01 +0000
 +++ test/ChangeLog	2010-10-10 11:59:53 +0000

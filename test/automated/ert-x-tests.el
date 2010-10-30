@@ -27,11 +27,10 @@
 
 ;;; Code:
 
-(require 'ert)
-(require 'ert-x)
-(require 'ert-ui)
 (eval-when-compile
   (require 'cl))
+(require 'ert)
+(require 'ert-x)
 
 ;;; Utilities
 

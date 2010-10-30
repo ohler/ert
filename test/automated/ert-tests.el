@@ -28,10 +28,7 @@
 
 (eval-when-compile
   (require 'cl))
-;; Test definitions should normally depend just on ert, not ert-ui.
-;; However, this file includes tests for ert-ui, so it has to depend
-;; on it.
-(require 'ert-ui)
+(require 'ert)
 
 
 ;;; Self-test that doesn't rely on ERT, for bootstrapping.
@@ -837,8 +834,9 @@ This macro is used to test if macroexpansion in `should' works."
                  '(different-properties-for-key c (different-atoms t nil))))
   (should (equal (ert--plist-difference-explanation
                   '(a b c (foo . bar)) '(c (foo . baz) a b))
-                 '(different-properties-for-key c (cdr
-                                                   (different-atoms bar baz))))))
+                 '(different-properties-for-key c
+                                                (cdr
+                                                 (different-atoms bar baz))))))
 
 (ert-deftest ert-test-abbreviate-string ()
   (should (equal (ert--abbreviate-string "foo" 4 nil) "foo"))
@@ -862,8 +860,9 @@ This macro is used to test if macroexpansion in `should' works."
                  (different-properties-for-key a (different-atoms b nil))
                  context-before ""
                  context-after "oo")))
-  (should (equal (ert--explain-not-equal-including-properties #("foo" 1 3 (a b))
-                                                              #("goo" 0 1 (c d)))
+  (should (equal (ert--explain-not-equal-including-properties
+                  #("foo" 1 3 (a b))
+                  #("goo" 0 1 (c d)))
                  '(array-elt 0 (different-atoms (?f "#x66" "?f")
                                                 (?g "#x67" "?g")))))
   (should

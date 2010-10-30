@@ -31,7 +31,6 @@
 (eval-when-compile
   (require 'cl))
 (require 'ert)
-(require 'ert-run)
 
 
 ;;; Test buffers.

@@ -250,7 +250,7 @@ scripts or makefiles.  There are two functions for this purpose,
 They can be used like this:
 
 @example
-emacs -batch -L /path/to/ert -l ert-batch.el -l my-tests.el -f ert-run-tests-batch-and-exit
+emacs -batch -L /path/to/ert -l ert.el -l my-tests.el -f ert-run-tests-batch-and-exit
 @end example
 
 This command will start up Emacs in batch mode, load ERT, load
@@ -727,8 +727,9 @@ explanation function.
 @section Low-Level Functions for Working with Tests
 
 Both @code{ert-run-tests-interactively} and @code{ert-run-tests-batch}
-are implemented on top of the lower-level test handling code in
-@code{ert.el} and @code{ert-run.el}.
+are implemented on top of the lower-level test handling code in the
+sections named ``Facilities for running a single test'', ``Test
+selectors'', and ``Facilities for running a whole set of tests''.
 
 If you want to write code that works with ERT tests, you should take a
 look at this lower-level code.  Symbols that start with @code{ert--}
