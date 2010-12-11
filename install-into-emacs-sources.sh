@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 if [ $# != 1 ]; then
-   echo "usage: ./install.sh destdir"
+   echo "usage: ./install-into-emacs-sources.sh destdir"
    echo
    echo "Installs ERT into an Emacs bzr workspace.  The argument destdir must"
    echo "be the root of that workspace."
@@ -28,6 +28,6 @@ for i in $lispfiles $testfiles $docfiles; do
 done
 bzr add $lispfiles $testfiles $docfiles
 
-patch -p0 < "$origdir/install.patch"
+patch -p0 < "$origdir/install-into-emacs-sources.patch"
 
 autoreconf
