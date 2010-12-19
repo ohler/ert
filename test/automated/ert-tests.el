@@ -83,13 +83,13 @@ failed or if there was a problem."
 (ert-deftest ert-test-pass ()
   (let ((test (make-ert-test :body (lambda ()))))
     (let ((result (ert-run-test test)))
-      (assert (typep result 'ert-test-passed)))))
+      (assert (ert-test-passed-p result)))))
 
 (ert-deftest ert-test-fail ()
   (let ((test (make-ert-test :body (lambda () (ert-fail "failure message")))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
-      (assert (typep result 'ert-test-failed) t)
+      (assert (ert-test-failed-p result) t)
       (assert (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed "failure message"))
               t))))
@@ -142,7 +142,7 @@ failed or if there was a problem."
   (let ((test (make-ert-test :body (lambda () (error "Error message")))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
-      (assert (typep result 'ert-test-failed) t)
+      (assert (ert-test-failed-p result) t)
       (assert (equal (ert-test-result-with-condition-condition result)
                      '(error "Error message"))
               t))))
@@ -163,13 +163,13 @@ failed or if there was a problem."
   (let ((test (make-ert-test :body (lambda () (should nil)))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
-      (assert (typep result 'ert-test-failed) t)
+      (assert (ert-test-failed-p result) t)
       (assert (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed ((should nil) :form nil :value nil)))
               t)))
   (let ((test (make-ert-test :body (lambda () (should t)))))
     (let ((result (ert-run-test test)))
-      (assert (typep result 'ert-test-passed) t))))
+      (assert (ert-test-passed-p result) t))))
 
 (ert-deftest ert-test-should-value ()
   (should (eql (should 'foo) 'foo))
@@ -179,13 +179,13 @@ failed or if there was a problem."
   (let ((test (make-ert-test :body (lambda () (should-not t)))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
-      (assert (typep result 'ert-test-failed) t)
+      (assert (ert-test-failed-p result) t)
       (assert (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed ((should-not t) :form t :value t)))
               t)))
   (let ((test (make-ert-test :body (lambda () (should-not nil)))))
     (let ((result (ert-run-test test)))
-      (assert (typep result 'ert-test-passed)))))
+      (assert (ert-test-passed-p result)))))
 
 (ert-deftest ert-test-should-with-macrolet ()
   (let ((test (make-ert-test :body (lambda ()
@@ -193,7 +193,7 @@ failed or if there was a problem."
                                        (should (foo)))))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
-      (should (typep result 'ert-test-failed))
+      (should (ert-test-failed-p result))
       (should (equal
                (ert-test-result-with-condition-condition result)
                '(ert-test-failed ((should (foo))
@@ -205,7 +205,7 @@ failed or if there was a problem."
   (let ((test (make-ert-test :body (lambda () (should-error (progn))))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
-      (should (typep result 'ert-test-failed))
+      (should (ert-test-failed-p result))
       (should (equal (ert-test-result-with-condition-condition result)
                      '(ert-test-failed
                        ((should-error (progn))
@@ -220,7 +220,7 @@ failed or if there was a problem."
                                      (should-error (error "Foo")
                                                    :type 'singularity-error)))))
     (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-failed))
+      (should (ert-test-failed-p result))
       (should (equal
                (ert-test-result-with-condition-condition result)
                '(ert-test-failed
@@ -237,7 +237,7 @@ failed or if there was a problem."
                               (should-error (signal 'singularity-error nil)
                                             :type 'singularity-error))))))
     (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-passed))
+      (should (ert-test-passed-p result))
       (should (equal error '(singularity-error))))))
 
 (ert-deftest ert-test-should-error-subtypes ()
@@ -249,7 +249,7 @@ failed or if there was a problem."
                        (should-error (signal 'arith-error nil)
                                      :type 'singularity-error)))))
     (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-failed))
+      (should (ert-test-failed-p result))
       (should (equal
                (ert-test-result-with-condition-condition result)
                '(ert-test-failed
@@ -265,7 +265,7 @@ failed or if there was a problem."
                                      :type 'singularity-error
                                      :exclude-subtypes t)))))
     (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-failed))
+      (should (ert-test-failed-p result))
       (should (equal
                (ert-test-result-with-condition-condition result)
                '(ert-test-failed
@@ -282,7 +282,7 @@ failed or if there was a problem."
                                      :type 'arith-error
                                      :exclude-subtypes t)))))
     (let ((result (ert-run-test test)))
-      (should (typep result 'ert-test-failed))
+      (should (ert-test-failed-p result))
       (should (equal
                (ert-test-result-with-condition-condition result)
                '(ert-test-failed
@@ -601,10 +601,10 @@ This macro is used to test if macroexpansion in `should' works."
                                      :body (lambda ()
                                              (should t)))))
                          (let ((result (ert-run-test test2)))
-                           (should (typep result 'ert-test-passed))))))))
+                           (should (ert-test-passed-p result))))))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
-      (should (typep result 'ert-test-passed))
+      (should (ert-test-passed-p result))
       (should (eql (length (ert-test-result-should-forms result))
                    1)))))
 
@@ -616,7 +616,7 @@ This macro is used to test if macroexpansion in `should' works."
                                        (should (equal obj '(b))))))))
     (let ((result (let ((ert-debug-on-error nil))
                     (ert-run-test test))))
-      (should (typep result 'ert-test-passed))
+      (should (ert-test-passed-p result))
       (should (equal (ert-test-result-should-forms result)
                      '(((should (equal obj '(a))) :form (equal (b) (a)) :value t
                         :explanation nil)
