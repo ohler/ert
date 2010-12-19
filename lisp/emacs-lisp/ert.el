@@ -1918,7 +1918,10 @@ are used for automated self-tests and specify which buffer to use
 and how to display message."
   (interactive
    (list (let ((default (if ert--selector-history
-                            (first ert--selector-history)
+                            ;; Can't use `first' here as this form is
+                            ;; not compiled, and `first' is not
+                            ;; defined without cl.
+                            (car ert--selector-history)
                           "t")))
            (read-from-minibuffer (if (null default)
                                      "Run tests: "
