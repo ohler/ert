@@ -1308,16 +1308,18 @@ SELECTOR is the selector that was used to select TESTS."
     (setf (ert--stats-start-time stats) (current-time))
     (funcall listener 'run-started stats)
     (let ((abortedp t))
-      (let ((ert--current-run-stats stats))
-        (force-mode-line-update)
-        (unwind-protect
-            (progn
-              (loop for test in tests do
-                    (ert-run-or-rerun-test stats test listener))
-              (setq abortedp nil))
-          (setf (ert--stats-aborted-p stats) abortedp)
-          (setf (ert--stats-end-time stats) (current-time))
-          (funcall listener 'run-ended stats abortedp)))
+      (unwind-protect
+          (let ((ert--current-run-stats stats))
+            (force-mode-line-update)
+            (unwind-protect
+                (progn
+                  (loop for test in tests do
+                        (ert-run-or-rerun-test stats test listener))
+                  (setq abortedp nil))
+              (setf (ert--stats-aborted-p stats) abortedp)
+              (setf (ert--stats-end-time stats) (current-time))
+              (funcall listener 'run-ended stats abortedp)))
+        (force-mode-line-update))
       stats)))
 
 (defun ert--stats-test-pos (stats test)
