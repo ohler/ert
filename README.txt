@@ -1,11 +1,11 @@
-This is ERT, a tool for automated testing in Emacs Lisp.
+This used to be ERT, a tool for automated testing in Emacs Lisp.
 
-In preparation for inclusion into Emacs, this repository is structured
-to match the layout of Emacs' source tree.
+ERT is now included in Emacs trunk; this repository is no longer
+maintained.  To get ERT, either build Emacs from trunk, or grab
+the following files which represent the last state of ERT before
+its installation into Emacs:
 
-If you want to use ERT, all you need are the .el files in
-lisp/emacs-lisp; put them somewhere in your load-path and compile
-them.  You can also run ert's self-tests by compiling & loading the
-.el files in test/automated and typing M-x ert RET RET.
-
-ERT's documentation is in doc/misc/ert.texi.
+https://github.com/ohler/ert/blob/c619b56c5bc6a866e33787489545b87d79973205/lisp/emacs-lisp/ert.el
+https://github.com/ohler/ert/blob/75ca9dd0859d16db4da88eec0c15fbc43f25ca97/lisp/emacs-lisp/ert-x.el
+https://github.com/ohler/ert/blob/bc51e3e8121d51dc88618847f0958e7ec832c7d2/test/automated/ert-tests.el
+https://github.com/ohler/ert/blob/75ca9dd0859d16db4da88eec0c15fbc43f25ca97/test/automated/ert-x-tests.el
