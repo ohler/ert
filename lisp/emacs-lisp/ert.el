@@ -1,8 +1,8 @@
 ;;; ert.el --- Emacs Lisp Regression Testing
 
-;; Copyright (C) 2007, 2008, 2010 Free Software Foundation, Inc.
+;; Copyright (C) 2007, 2008, 2010, 2011 Free Software Foundation, Inc.
 
-;; Author: Christian M. Ohler
+;; Author: Christian Ohler <ohler@gnu.org>
 ;; Keywords: lisp, tools
 
 ;; This file is NOT part of GNU Emacs.
@@ -1495,9 +1495,9 @@ Returns the stats object."
   "Like `ert-run-tests-batch', but exits Emacs when done.
 
 The exit status will be 0 if all test results were as expected, 1
-on unexpected results, or 2 if the framework detected an error
-outside of the tests (e.g. invalid SELECTOR or bug in the code
-that runs the tests)."
+on unexpected results, or 2 if the tool detected an error outside
+of the tests (e.g. invalid SELECTOR or bug in the code that runs
+the tests)."
   (unwind-protect
       (let ((stats (ert-run-tests-batch selector)))
         (kill-emacs (if (zerop (ert-stats-completed-unexpected stats)) 0 1)))

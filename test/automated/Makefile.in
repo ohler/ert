@@ -1,5 +1,5 @@
 # Maintenance productions for the automated test directory
-# Copyright (C) 2010 Free Software Foundation, Inc.
+# Copyright (C) 2010, 2011 Free Software Foundation, Inc.
 
 # This file is part of GNU Emacs.
 
@@ -36,7 +36,7 @@ EMACS = ${abs_top_builddir}/src/emacs
 
 # Command line flags for Emacs.
 
-EMACSOPT = -batch --no-site-file
+EMACSOPT = -batch --no-site-file --no-site-lisp
 
 # Extra flags to pass to the byte compiler
 BYTE_COMPILE_EXTRA_FLAGS =
@@ -144,15 +144,15 @@ distclean:
 
 maintainer-clean: distclean bootstrap-clean
 
-# TODO(ohler): verify that this aborts if tests fail.
 check: compile-main
 	@(cd $(test); $(setwins); \
-	els=`echo "$$wins " | sed -e 's|/\./|/|g' -e 's|/\. | |g' -e 's| |/*.el |g'`; \
-	for el in $$els; do \
+	pattern=`echo "$$wins " | sed -e 's|/\./|/|g' -e 's|/\. | |g' -e 's| |/*.el |g'`; \
+	for el in $$pattern; do \
 	  test -f $$el || continue; \
 	  args="$$args -l $$el"; \
+	  els="$$els $$el"; \
 	done; \
-	echo Testing $$el; \
+	echo Testing $$els; \
 	$(emacs) $$args -f ert-run-tests-batch-and-exit)
 
 # Makefile ends here.
